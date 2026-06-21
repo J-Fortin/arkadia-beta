@@ -11,6 +11,7 @@ import {
 import { generateCharacterWorkbook } from "./services/excel.service.js";
 import { parseCharacterWorkbook } from "./services/excel.service.js";
 import { sendCharacterWorkbookEmail } from "./services/email.service.js";
+import { getEmailConfigStatus } from "./services/email.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -189,6 +190,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/database/competences-meta") {
       sendJson(res, 200, await getCompetenceMeta());
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/email/config") {
+      sendJson(res, 200, getEmailConfigStatus());
       return;
     }
 

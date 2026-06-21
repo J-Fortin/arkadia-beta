@@ -5,6 +5,19 @@ function smtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM);
 }
 
+export function getEmailConfigStatus() {
+  return {
+    configured: smtpConfigured(),
+    animationEmail: Boolean(process.env.ANIMATION_EMAIL),
+    smtpHost: Boolean(process.env.SMTP_HOST),
+    smtpPort: Boolean(process.env.SMTP_PORT),
+    smtpSecure: Boolean(process.env.SMTP_SECURE),
+    smtpUser: Boolean(process.env.SMTP_USER),
+    smtpPass: Boolean(process.env.SMTP_PASS),
+    smtpFrom: Boolean(process.env.SMTP_FROM)
+  };
+}
+
 function encodeHeader(value) {
   return `=?UTF-8?B?${Buffer.from(String(value || ""), "utf8").toString("base64")}?=`;
 }
@@ -136,6 +149,7 @@ export async function sendCharacterWorkbookEmail({ data, workbook, emailPreview,
       sent: false,
       mode: "preview",
       message: "Fiche recue. SMTP non configure: courriel en mode previsualisation.",
+      smtpConfig: getEmailConfigStatus(),
       recipients: {
         animation: animationEmail,
         joueur: playerEmail
