@@ -26,6 +26,17 @@ function normalizeAddress(value) {
   return String(value || "").trim();
 }
 
+function errorDetail(error) {
+  if (error instanceof AggregateError && Array.isArray(error.errors)) {
+    return error.errors
+      .map((inner) => inner?.message || inner?.code || String(inner))
+      .filter(Boolean)
+      .join(" | ") || error.message || "AggregateError";
+  }
+
+  return error?.message || error?.code || String(error) || "Erreur SMTP inconnue.";
+}
+
 function command(socket, line, expected = [250]) {
   return new Promise((resolve, reject) => {
     let response = "";
@@ -205,7 +216,7 @@ export async function sendCharacterWorkbookEmail({ data, workbook, emailPreview,
       }
     });
   } catch (error) {
-    const detail = error?.message || String(error) || "Erreur SMTP inconnue.";
+    const detail = errorDetail(error);
     return {
       sent: false,
       mode: "smtp-error",
