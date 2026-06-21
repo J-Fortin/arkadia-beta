@@ -143,16 +143,28 @@ export async function sendCharacterWorkbookEmail({ data, workbook, emailPreview,
     };
   }
 
-  await sendSmtpMail({
-    to: animationEmail,
-    cc: playerEmail,
-    subject: `Fiche Arkadia - ${data.personnage?.nom || "Personnage"}`,
-    text: emailPreview,
-    attachment: {
-      filename,
-      content: workbook
-    }
-  });
+  try {
+    await sendSmtpMail({
+      to: animationEmail,
+      cc: playerEmail,
+      subject: `Fiche Arkadia - ${data.personnage?.nom || "Personnage"}`,
+      text: emailPreview,
+      attachment: {
+        filename,
+        content: workbook
+      }
+    });
+  } catch (error) {
+    return {
+      sent: false,
+      mode: "smtp-error",
+      message: `Courriel non envoye: ${error.message}`,
+      recipients: {
+        animation: animationEmail,
+        joueur: playerEmail
+      }
+    };
+  }
 
   return {
     sent: true,

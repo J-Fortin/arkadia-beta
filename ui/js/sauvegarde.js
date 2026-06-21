@@ -67,7 +67,11 @@ async function envoyer(){
 
   try{
     const result=await envoyerFicheParCourriel(collecterFiche());
-    alert(result.message || "Fiche envoyée.");
+    if(result.sent){
+      alert(result.message || "Fiche envoyée.");
+    }else{
+      alert((result.message || "Le courriel n'a pas été envoyé.") + "\n\nVérifie la configuration SMTP dans Render.");
+    }
   }catch(error){
     console.error(error);
     alert("Impossible d'envoyer la fiche. Vérifie que le backend est démarré et configuré.");
