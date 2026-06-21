@@ -5,9 +5,16 @@ function smtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM);
 }
 
+function resendConfigured() {
+  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+}
+
 export function getEmailConfigStatus() {
   return {
-    configured: smtpConfigured(),
+    configured: resendConfigured() || smtpConfigured(),
+    provider: resendConfigured() ? "resend" : smtpConfigured() ? "smtp" : "preview",
+    resendApiKey: Boolean(process.env.RESEND_API_KEY),
+    emailFrom: Boolean(process.env.EMAIL_FROM),
     animationEmail: Boolean(process.env.ANIMATION_EMAIL),
     smtpHost: Boolean(process.env.SMTP_HOST),
     smtpPort: Boolean(process.env.SMTP_PORT),
@@ -187,21 +194,88 @@ async function sendSmtpMail({ to, cc, subject, text, attachment }) {
   }
 }
 
+async function sendResendMail({ to, cc, subject, text, attachment }) {
+  const recipients = [to].filter(Boolean);
+  const ccRecipients = [cc].filter(Boolean);
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM,
+      to: recipients,
+      cc: ccRecipients.length ? ccRecipients : undefined,
+      subject,
+      text,
+      attachments: [
+        {
+          filename: attachment.filename,
+          content: attachment.content.toString("base64")
+        }
+      ]
+    })
+  });
+
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`Resend HTTP ${response.status}: ${body}`);
+  }
+
+  return body;
+}
+
 export async function sendCharacterWorkbookEmail({ data, workbook, emailPreview, filename }) {
   const animationEmail = normalizeAddress(process.env.ANIMATION_EMAIL || "vidarmazrim@gmail.com");
   const playerEmail = normalizeAddress(data.joueur?.email);
 
-  if (!smtpConfigured()) {
+  if (!resendConfigured() && !smtpConfigured()) {
     return {
       sent: false,
       mode: "preview",
-      message: "Fiche recue. SMTP non configure: courriel en mode previsualisation.",
+      message: "Fiche recue. Aucun fournisseur courriel configure: mode previsualisation.",
       smtpConfig: getEmailConfigStatus(),
       recipients: {
         animation: animationEmail,
         joueur: playerEmail
       }
     };
+  }
+
+  if (resendConfigured()) {
+    try {
+      await sendResendMail({
+        to: animationEmail,
+        cc: playerEmail,
+        subject: `Fiche Arkadia - ${data.personnage?.nom || "Personnage"}`,
+        text: emailPreview,
+        attachment: {
+          filename,
+          content: workbook
+        }
+      });
+
+      return {
+        sent: true,
+        mode: "resend",
+        message: "Fiche envoyee par courriel.",
+        recipients: {
+          animation: animationEmail,
+          joueur: playerEmail
+        }
+      };
+    } catch (error) {
+      return {
+        sent: false,
+        mode: "resend-error",
+        message: `Courriel non envoye: ${errorDetail(error)}`,
+        recipients: {
+          animation: animationEmail,
+          joueur: playerEmail
+        }
+      };
+    }
   }
 
   try {
