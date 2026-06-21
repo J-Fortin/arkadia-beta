@@ -419,8 +419,16 @@ function addComp(nomVal='',xpVal='',freqVal='',countVal='1'){
   rebuildCompSelect(sel);
 
   if(nomVal){
+    let found=false;
     for(let opt of sel.options){
-      if(opt.value.startsWith(nomVal+'|')){sel.value=opt.value;break;}
+      if(opt.value.startsWith(nomVal+'|')){sel.value=opt.value;found=true;break;}
+    }
+    if(!found){
+      const opt=document.createElement('option');
+      opt.value=`${nomVal}|${xpVal||0}||Importée|1`;
+      opt.textContent=`${nomVal} [importée]`;
+      sel.appendChild(opt);
+      sel.value=opt.value;
     }
     onCompSel(sel,id,xpVal,freqVal,countVal);
   }

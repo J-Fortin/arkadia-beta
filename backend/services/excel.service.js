@@ -1,3 +1,5 @@
+import zlib from "node:zlib";
+
 function xml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -128,12 +130,14 @@ function readZipEntries(buffer) {
     text(name) {
       const entry = entries.get(name);
       if (!entry) throw new Error(`Fichier XLSX manquant: ${name}`);
-      if (entry.method !== 0) throw new Error("Import XLSX compresse non supporte pour le moment.");
-
       const fileNameLength = buffer.readUInt16LE(entry.localOffset + 26);
       const extraLength = buffer.readUInt16LE(entry.localOffset + 28);
       const dataStart = entry.localOffset + 30 + fileNameLength + extraLength;
-      return buffer.toString("utf8", dataStart, dataStart + entry.compressedSize);
+      const data = buffer.subarray(dataStart, dataStart + entry.compressedSize);
+
+      if (entry.method === 0) return data.toString("utf8");
+      if (entry.method === 8) return zlib.inflateRawSync(data).toString("utf8");
+      throw new Error(`Compression XLSX non supportee: ${entry.method}`);
     }
   };
 }
@@ -145,6 +149,54 @@ function unxml(value) {
     .replace(/&gt;/g, ">")
     .replace(/&lt;/g, "<")
     .replace(/&amp;/g, "&");
+}
+
+function slugify(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " et ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+const optionAliases = {
+  "elf-noir": "elfe-noir",
+  "elfe-noir": "elfe-noir",
+  "haut-elfe-noldar": "haut-elfe",
+  "demi-elfe-peredhil": "demi-elfe",
+  "elfe-gris-mitheldar": "elfe-gris",
+  "elfe-lunaire-ithileldar": "elfe-lunaire",
+  "elfe-sauvage-sylaneldar": "elfe-sauvage",
+  "presqu-humain": "presque-humain",
+  "maitre-des-runes": "maitre-runes",
+  "seigneur-de-guerre": "seigneur-guerre"
+};
+
+const moraliteAliases = {
+  neutre: "balancee",
+  balance: "balancee",
+  balancee: "balancee",
+  benefique: "benefique",
+  malefique: "malefique"
+};
+
+function optionValue(label) {
+  const slug = slugify(label);
+  return optionAliases[slug] || slug;
+}
+
+function parseSharedStringsFromZip(zip) {
+  try {
+    const xml = zip.text("xl/sharedStrings.xml");
+    return [...xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((match) => {
+      const text = [...match[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((part) => part[1]).join("");
+      return unxml(text);
+    });
+  } catch {
+    return [];
+  }
 }
 
 function parseSheetRows(sheetXml) {
@@ -169,6 +221,142 @@ function parseSheetRows(sheetXml) {
   }
 
   return rows;
+}
+
+function parseSheetCells(sheetXml, sharedStrings) {
+  const rows = new Map();
+
+  for (const rowMatch of sheetXml.matchAll(/<row\b[^>]*\br="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
+    const rowNumber = Number(rowMatch[1]);
+    const row = new Map();
+
+    for (const cellMatch of rowMatch[2].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+      const attrs = cellMatch[1];
+      const body = cellMatch[2];
+      const col = attrs.match(/\br="([A-Z]+)\d+"/)?.[1];
+      const type = attrs.match(/\bt="([^"]+)"/)?.[1] || "";
+      if (!col) continue;
+
+      const raw = body.match(/<v>([\s\S]*?)<\/v>/)?.[1] || "";
+      const inlineText = body.match(/<t\b[^>]*>([\s\S]*?)<\/t>/)?.[1] || "";
+      let text = raw;
+      if (type === "s") text = sharedStrings[Number(raw)] || "";
+      if (type === "inlineStr") text = inlineText;
+
+      row.set(col, { raw, text: unxml(text), type });
+    }
+
+    rows.set(rowNumber, row);
+  }
+
+  return rows;
+}
+
+function parseExcelDate(raw) {
+  const serial = Number(raw);
+  if (!serial || serial < 20_000) return "";
+  const date = new Date(Date.UTC(1899, 11, 30 + serial));
+  return date.toISOString().slice(0, 10);
+}
+
+function parseLegacyArkadiaWorkbook(sheetXml, sharedStrings) {
+  const rows = parseSheetCells(sheetXml, sharedStrings);
+
+  function cell(row, col) {
+    return rows.get(row)?.get(col) || { raw: "", text: "", type: "" };
+  }
+
+  function text(row, col) {
+    const value = cell(row, col);
+    const index = Number(value.raw);
+    if (value.type === "s") return value.text.trim();
+    if (/^\d+$/.test(value.raw) && index > 0 && sharedStrings[index]) return sharedStrings[index].trim();
+    return String(value.text || value.raw || "").trim();
+  }
+
+  function raw(row, col) {
+    return String(cell(row, col).raw || "").trim();
+  }
+
+  const data = {
+    v: "2.4",
+    joueur: {
+      nom: text(2, "D"),
+      naiss: raw(3, "D") ? `${Math.round(Number(raw(3, "D")))}-01-01` : "",
+      premier: parseExcelDate(raw(4, "AA")),
+      tel: text(4, "U"),
+      email: "",
+      allergies: text(9, "G"),
+      u1nom: text(6, "S"),
+      u1tel: text(6, "D"),
+      u2nom: text(7, "S"),
+      u2tel: text(7, "D")
+    },
+    personnage: {
+      nom: text(48, "D"),
+      premier: parseExcelDate(raw(49, "P")),
+      race: optionValue(text(51, "F")),
+      carriere: optionValue(text(51, "U")),
+      moralite: moraliteAliases[slugify(text(60, "F"))] || optionValue(text(60, "F")),
+      religion: text(54, "F"),
+      ecole: "",
+      maison: text(56, "H"),
+      noblesse: slugify(text(56, "W")) === "oui" ? "oui" : "non",
+      ptsArmure: String(Math.round(Number(raw(58, "S")) || 0)),
+      typeArmure: "",
+      faiblesses: text(52, "F"),
+      immunites: text(52, "U"),
+      evenementsParticipes: "",
+      xpEvenements: "",
+      xpTotal: "",
+      ressources: "",
+      titres: "",
+      notes: raw(61, "U") ? `Import ancienne fiche : total XP indique dans le fichier original = ${Math.round(Number(raw(61, "U")) || 0)}.` : "",
+      bg: ""
+    },
+    audit: { eventCountBaseline: 0, eventCountCurrent: 0, eventAbuseWarning: "" },
+    competences: [],
+    sorts: [],
+    evenements: []
+  };
+
+  for (let row = 22; row <= 43; row++) {
+    const ev = text(row, "B");
+    const saisonRaw = raw(row, "D");
+    if (!ev || ev === "Événement") continue;
+    data.evenements.push({
+      ev,
+      saison: saisonRaw ? String(Math.round(Number(saisonRaw) || 0)) : "",
+      xp: "3"
+    });
+  }
+
+  data.audit.eventCountCurrent = data.evenements.length;
+  data.personnage.evenementsParticipes = String(data.evenements.length);
+  data.personnage.xpEvenements = String(data.evenements.length * 3);
+  data.personnage.xpTotal = String(data.evenements.length);
+
+  for (let row = 66; row <= 85; row++) {
+    const name = text(row, "A");
+    const xp = raw(row, "D");
+    if (!name || name === "Compétences") continue;
+    data.competences.push({
+      nom: name,
+      freq: "",
+      count: "1",
+      xp: String(Math.round(Number(xp) || 0))
+    });
+  }
+
+  for (let row = 91; row <= 111; row++) {
+    const lvl = raw(row, "A");
+    const nom = text(row, "D");
+    if (nom && nom !== "Nom du sort ") {
+      data.sorts.push({ lvl: String(Math.round(Number(lvl) || 0)), nom, xp: "0" });
+    }
+  }
+
+  return data;
 }
 
 function findSectionRows(rows) {
@@ -332,8 +520,13 @@ export async function generateCharacterWorkbook(data) {
 
 export async function parseCharacterWorkbook(buffer) {
   const zip = readZipEntries(buffer);
-  const rows = parseSheetRows(zip.text("xl/worksheets/sheet1.xml"));
+  const sheetXml = zip.text("xl/worksheets/sheet1.xml");
+  const sharedStrings = parseSharedStringsFromZip(zip);
+  const rows = parseSheetRows(sheetXml);
   const sections = findSectionRows(rows);
+  if (!sections.has("Informations du joueur")) {
+    return parseLegacyArkadiaWorkbook(sheetXml, sharedStrings);
+  }
   const lastRow = Math.max(...rows.keys());
   const sectionOrder = [
     "Informations du joueur",
