@@ -29,6 +29,34 @@ function normalizeAddress(value) {
 function command(socket, line, expected = [250]) {
   return new Promise((resolve, reject) => {
     let response = "";
+    let settled = false;
+
+    function cleanup() {
+      socket.off("data", onData);
+      socket.off("error", onError);
+      socket.off("close", onClose);
+      socket.off("timeout", onTimeout);
+    }
+
+    function finish(error, value) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(value);
+    }
+
+    function onError(error) {
+      finish(error || new Error("Erreur SMTP inconnue."));
+    }
+
+    function onClose() {
+      finish(new Error(response.trim() || "Connexion SMTP fermee par le serveur."));
+    }
+
+    function onTimeout() {
+      finish(new Error("Delai SMTP depasse."));
+    }
 
     function onData(chunk) {
       response += chunk.toString("utf8");
@@ -37,13 +65,15 @@ function command(socket, line, expected = [250]) {
 
       if (!/^\d{3} /.test(last)) return;
 
-      socket.off("data", onData);
       const code = Number(last.slice(0, 3));
-      if (expected.includes(code)) resolve(response);
-      else reject(new Error(`SMTP ${code}: ${response.trim()}`));
+      if (expected.includes(code)) finish(null, response);
+      else finish(new Error(`SMTP ${code}: ${response.trim()}`));
     }
 
     socket.on("data", onData);
+    socket.once("error", onError);
+    socket.once("close", onClose);
+    socket.once("timeout", onTimeout);
     if (line) socket.write(`${line}\r\n`);
   });
 }
@@ -72,9 +102,15 @@ function connectSmtp() {
 async function upgradeStartTls(socket) {
   await command(socket, "STARTTLS", [220]);
 
-  return tls.connect({
-    socket,
-    servername: process.env.SMTP_HOST
+  return new Promise((resolve, reject) => {
+    const secureSocket = tls.connect({
+      socket,
+      servername: process.env.SMTP_HOST
+    });
+
+    secureSocket.once("secureConnect", () => resolve(secureSocket));
+    secureSocket.once("error", reject);
+    secureSocket.once("timeout", () => reject(new Error("Delai STARTTLS depasse.")));
   });
 }
 
@@ -169,10 +205,11 @@ export async function sendCharacterWorkbookEmail({ data, workbook, emailPreview,
       }
     });
   } catch (error) {
+    const detail = error?.message || String(error) || "Erreur SMTP inconnue.";
     return {
       sent: false,
       mode: "smtp-error",
-      message: `Courriel non envoye: ${error.message}`,
+      message: `Courriel non envoye: ${detail}`,
       recipients: {
         animation: animationEmail,
         joueur: playerEmail
