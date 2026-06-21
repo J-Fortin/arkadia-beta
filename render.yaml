@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: arkadia-beta
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: ANIMATION_EMAIL
+        value: vidarmazrim@gmail.com
