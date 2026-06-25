@@ -9,7 +9,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: ANIMATION_EMAIL
-        value: vidarmazrim@gmail.com
+        value: jeremifortinn@gmail.com
       - key: EMAIL_FROM
         value: Arkadia <onboarding@resend.dev>
       - key: RESEND_API_KEY

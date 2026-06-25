@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 const workbookPath = path.resolve(
   __dirname,
-  "../../database/source/Fiche de joueur - V1.2.xlsx"
+  "../../database/source/Fiche-de-joueur-V1.3.xlsx"
 );
 
 let workbookCache;
@@ -76,6 +76,58 @@ function uniqueOptions(options) {
   return options.filter((option) => {
     if (!option.label || seen.has(option.value)) return false;
     seen.add(option.value);
+    return true;
+  });
+}
+
+function sheetValue(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "0" || text.startsWith("#")) return "";
+  return text;
+}
+
+function sheetNumber(value) {
+  const text = sheetValue(value).replace(",", ".");
+  const number = Number(text);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function sheetBoolean(value) {
+  const text = sheetValue(value).toLowerCase();
+  return text === "1" || text === "true" || text === "oui" || text === "yes";
+}
+
+function addUniqueMappedValue(map, key, value) {
+  if (!key || !value) return;
+  if (!map[key]) map[key] = [];
+  if (!map[key].includes(value)) map[key].push(value);
+}
+
+function cleanListValue(value) {
+  return sheetValue(value).replace(/\s*\/\s*$/, "").trim();
+}
+
+function isNameValue(value) {
+  const text = sheetValue(value);
+  return Boolean(text && !/^-?\d+(\.\d+)?$/.test(text));
+}
+
+function pushUniqueValue(list, value) {
+  if (value && !list.includes(value)) list.push(value);
+}
+
+function addMappedListValue(map, key, value) {
+  if (!key || !value) return;
+  if (!map[key]) map[key] = [];
+  pushUniqueValue(map[key], value);
+}
+
+function uniqueByKey(items, keyFn) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = keyFn(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }
@@ -262,12 +314,32 @@ export async function getDatabaseOptions() {
   const workbook = await readWorkbook();
   const dataSheet = workbook.getWorksheet("Données");
   const magicSheet = workbook.getWorksheet("Magie");
+  const schoolRestrictionSheet = workbook.getWorksheet("Restriction d'école");
+  const careerRestrictionSheet = workbook.getWorksheet("Restriction de carrière");
+  const moralityRestrictionSheet = workbook.getWorksheet("Restriction de moralité");
+  const divinityRestrictionSheet = workbook.getWorksheet("Restriction de divinité");
+  const competenceSheet = workbook.getWorksheet("Compétences");
+  const weaknessSheet = workbook.getWorksheet("Faiblesses");
+  const immunitySheet = workbook.getWorksheet("Immunités");
 
   const races = [];
   const carrieres = [];
   const religions = [];
   const moralites = [];
   const ecoles = [];
+  const ecolesParCarriere = {};
+  const ecolesParDivinite = {};
+  const sorts = {};
+  let careerIndex = 0;
+  const carrieresPermisesParRace = {};
+  const moralitesPermisesParRace = {};
+  const divinitesPermisesParRace = {};
+  const faiblessesParRace = {};
+  const faiblessesParCarriereMoralite = {};
+  const immunitesParRace = {};
+  const immunitesParCarriere = {};
+  const immunitesParCompetence = {};
+  const competences = [];
 
   for (let row = 3; row <= dataSheet.rowCount; row++) {
     const race = dataSheet.cell(row, 3);
@@ -275,15 +347,156 @@ export async function getDatabaseOptions() {
     const religion = dataSheet.cell(row, 12);
     const moralite = dataSheet.cell(row, 14);
 
-    if (race) races.push({ value: optionValue(race), label: race });
-    if (carriere) carrieres.push({ value: optionValue(carriere), label: carriere });
+    if (race) {
+      races.push({
+        value: optionValue(race),
+        label: race,
+        xp: sheetNumber(dataSheet.cell(row, 4)),
+        pvJour: sheetNumber(dataSheet.cell(row, 5)),
+        pvNuit: sheetNumber(dataSheet.cell(row, 6))
+      });
+    }
+    if (carriere) {
+      careerIndex++;
+      carrieres.push({
+        value: optionValue(carriere),
+        label: carriere,
+        mixte: careerIndex > 7,
+        armurePermise: sheetNumber(dataSheet.cell(row, 9)),
+        typeArmure: sheetValue(dataSheet.cell(row, 10)),
+        ptsMagie: sheetNumber(dataSheet.cell(row, 17)),
+        semiMagique: sheetBoolean(dataSheet.cell(row, 18)),
+        maxMagique: sheetNumber(dataSheet.cell(row, 19))
+      });
+    }
     if (religion) religions.push({ value: religionValue(religion), label: religion });
     if (moralite) moralites.push({ value: optionValue(moralite), label: moralite });
   }
 
   for (let row = 3; row <= magicSheet.rowCount; row++) {
-    const ecole = magicSheet.cell(row, 1);
+    const ecole = sheetValue(magicSheet.cell(row, 1));
+    const nom = sheetValue(magicSheet.cell(row, 2));
+    const xp = sheetNumber(magicSheet.cell(row, 3));
+    const niveau = sheetNumber(magicSheet.cell(row, 4));
+
     if (ecole) ecoles.push({ value: ecole, label: ecole });
+    if (ecole && nom && niveau) {
+      const levelKey = String(niveau);
+      if (!sorts[ecole]) sorts[ecole] = {};
+      if (!sorts[ecole][levelKey]) sorts[ecole][levelKey] = [];
+      if (!sorts[ecole][levelKey].some((sort) => sort.nom === nom)) {
+        sorts[ecole][levelKey].push({ nom, xp });
+      }
+    }
+  }
+
+  if (schoolRestrictionSheet) {
+    for (let row = 2; row <= schoolRestrictionSheet.rowCount; row++) {
+      const carriere = sheetValue(schoolRestrictionSheet.cell(row, 5));
+      const ecoleCarriere = sheetValue(schoolRestrictionSheet.cell(row, 6));
+      const divinite = sheetValue(schoolRestrictionSheet.cell(row, 8));
+      const ecoleDivinite = sheetValue(schoolRestrictionSheet.cell(row, 9));
+
+      addUniqueMappedValue(ecolesParCarriere, optionValue(carriere), ecoleCarriere);
+      addUniqueMappedValue(ecolesParDivinite, religionValue(divinite), ecoleDivinite);
+    }
+  }
+
+  if (careerRestrictionSheet) {
+    for (let row = 3; row <= careerRestrictionSheet.rowCount; row++) {
+      const race = sheetValue(careerRestrictionSheet.cell(row, 4));
+      const carriere = sheetValue(careerRestrictionSheet.cell(row, 5));
+      addMappedListValue(carrieresPermisesParRace, optionValue(race), optionValue(carriere));
+    }
+  }
+
+  if (moralityRestrictionSheet) {
+    for (let row = 2; row <= moralityRestrictionSheet.rowCount; row++) {
+      const race = sheetValue(moralityRestrictionSheet.cell(row, 4));
+      const moralite = sheetValue(moralityRestrictionSheet.cell(row, 5));
+      addMappedListValue(moralitesPermisesParRace, optionValue(race), optionValue(moralite));
+    }
+  }
+
+  if (divinityRestrictionSheet) {
+    for (let row = 2; row <= divinityRestrictionSheet.rowCount; row++) {
+      const race = sheetValue(divinityRestrictionSheet.cell(row, 7));
+      const divinite = sheetValue(divinityRestrictionSheet.cell(row, 8));
+      addMappedListValue(divinitesPermisesParRace, optionValue(race), religionValue(divinite));
+    }
+  }
+
+  if (weaknessSheet) {
+    for (let row = 3; row <= weaknessSheet.rowCount; row++) {
+      const race = sheetValue(weaknessSheet.cell(row, 2));
+      [3, 4, 5].forEach((col) => {
+        addMappedListValue(faiblessesParRace, optionValue(race), cleanListValue(weaknessSheet.cell(row, col)));
+      });
+
+      const carriere = sheetValue(weaknessSheet.cell(row, 8));
+      const moralite = optionValue(weaknessSheet.cell(row, 9));
+      const key = `${optionValue(carriere)}|${moralite}`;
+      [11, 12].forEach((col) => {
+        addMappedListValue(faiblessesParCarriereMoralite, key, cleanListValue(weaknessSheet.cell(row, col)));
+      });
+    }
+  }
+
+  if (immunitySheet) {
+    for (let row = 3; row <= immunitySheet.rowCount; row++) {
+      const race = sheetValue(immunitySheet.cell(row, 2));
+      [3, 4, 5, 6].forEach((col) => {
+        addMappedListValue(immunitesParRace, optionValue(race), cleanListValue(immunitySheet.cell(row, col)));
+      });
+
+      const carriere = sheetValue(immunitySheet.cell(row, 9));
+      addMappedListValue(immunitesParCarriere, optionValue(carriere), cleanListValue(immunitySheet.cell(row, 10)));
+
+      const competence = sheetValue(immunitySheet.cell(row, 12));
+      addMappedListValue(immunitesParCompetence, competence, cleanListValue(immunitySheet.cell(row, 13)));
+    }
+  }
+
+  if (competenceSheet) {
+    const baseXpByName = new Map();
+
+    for (let row = 3; row <= competenceSheet.rowCount; row++) {
+      const nom = sheetValue(competenceSheet.cell(row, 8));
+      const xp = sheetNumber(competenceSheet.cell(row, 9));
+      const carriere = sheetValue(competenceSheet.cell(row, 10));
+      const cumulableMax = sheetNumber(competenceSheet.cell(row, 11)) || 1;
+
+      if (!isNameValue(nom)) continue;
+
+      const option = {
+        nom,
+        xp,
+        cat: carriere ? `Carrière - ${carriere}` : "Générale",
+        carriere: carriere ? optionValue(carriere) : "",
+        cumulableMax
+      };
+
+      competences.push(option);
+      if (!baseXpByName.has(nom) || xp < baseXpByName.get(nom)) baseXpByName.set(nom, xp);
+    }
+
+    for (let row = 3; row <= competenceSheet.rowCount; row++) {
+      const race = sheetValue(competenceSheet.cell(row, 17));
+      const nom = sheetValue(competenceSheet.cell(row, 18));
+      const xpDelta = sheetNumber(competenceSheet.cell(row, 21));
+      const baseXp = baseXpByName.get(nom);
+
+      if (!isNameValue(race) || !isNameValue(nom) || baseXp === undefined) continue;
+
+      competences.push({
+        nom,
+        xp: Math.max(0, baseXp + xpDelta),
+        cat: "Raciale",
+        race: optionValue(race),
+        note: xpDelta < 0 ? "rabais racial" : "",
+        cumulableMax: 1
+      });
+    }
   }
 
   return {
@@ -291,7 +504,24 @@ export async function getDatabaseOptions() {
     carrieres: uniqueOptions(carrieres),
     religions: uniqueOptions(religions),
     moralites: uniqueOptions(moralites),
-    ecoles: uniqueOptions(ecoles)
+    ecoles: uniqueOptions(ecoles),
+    ecolesParCarriere,
+    ecolesParDivinite,
+    sorts,
+    carrieresPermisesParRace,
+    moralitesPermisesParRace,
+    divinitesPermisesParRace,
+    faiblessesParRace,
+    faiblessesParCarriereMoralite,
+    immunitesParRace,
+    immunitesParCarriere,
+    immunitesParCompetence,
+    competences: uniqueByKey(competences, (option) => [
+      option.cat,
+      option.nom,
+      option.race || "",
+      option.carriere || ""
+    ].join("|"))
   };
 }
 

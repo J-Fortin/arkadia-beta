@@ -2,12 +2,8 @@
 function raceCarriereSontCompatibles(race, carriere) {
   if (!race || !carriere) return true;
 
-  const r = RACES[race];
-  const c = CARRIERES[carriere];
-  if (!r || !c) return true;
-
-  if (r.carrieresInterdites && r.carrieresInterdites.includes(carriere)) return false;
-  if (r.carrieresMustBe && !r.carrieresMustBe.includes(carriere)) return false;
+  const carrieresPermises = getAllowedCareersForRace(race);
+  if (carrieresPermises.length > 0 && !carrieresPermises.includes(carriere)) return false;
 
   return true;
 }
@@ -26,9 +22,11 @@ function refreshRaceCareerOptions(changedField = null) {
   const availableCarrieres = DATABASE_OPTIONS.carrieres.filter(option => {
     return !currentRace || raceCarriereSontCompatibles(currentRace, option.value);
   });
+  const availableReligions = getReligionOptionsForSelection(currentRace);
 
   renderOptions('race', availableRaces, '-- Choisir une race --');
   renderOptions('carriere', availableCarrieres, '-- Choisir une carrière --');
+  renderOptions('religion', availableReligions, '-- Choisir --');
 
   const raceWasRemoved = Boolean(currentRace && !availableRaces.some(option => option.value === currentRace));
   const carriereWasRemoved = Boolean(currentCarriere && !availableCarrieres.some(option => option.value === currentCarriere));
@@ -45,11 +43,11 @@ function refreshRaceCareerOptions(changedField = null) {
   }
 
   if (changedField === 'race' && carriereWasRemoved) {
-    alert('La carrière choisie a été retirée, car elle est interdite pour cette race.');
+    alert('La carrière choisie a été retirée, car elle n’est pas permise par la base pour cette race.');
   }
 
   if (changedField === 'carriere' && raceWasRemoved) {
-    alert('La race choisie a été retirée, car elle est interdite pour cette carrière.');
+    alert('La race choisie a été retirée, car elle n’est pas permise par la base pour cette carrière.');
   }
 }
 
@@ -65,15 +63,15 @@ function validerCombinaisonRaceCarriere() {
     return true;
   }
 
-  const r = RACES[race];
-  const c = CARRIERES[carriere];
+  const r = getDatabaseRaceOption(race);
+  const c = getDatabaseCarriereOption(carriere);
   if (!r || !c) {
     alertEl.classList.remove('show');
     return true;
   }
 
   if (!raceCarriereSontCompatibles(race, carriere)) {
-    alertEl.innerHTML = `⛔ <b>Combinaison interdite :</b> La race <b>${r.label}</b> ne peut pas être de carrière <b>${c.label}</b>.`;
+    alertEl.innerHTML = `⛔ <b>Combinaison interdite :</b> La base ne permet pas <b>${r.label}</b> avec <b>${c.label}</b>.`;
     alertEl.classList.add('show');
     setRaceCarriereInvalid(true);
     return false;
@@ -101,10 +99,11 @@ function validerMoraliteDivinite() {
   let ok = true;
 
   if (race && moralite) {
-    const r = RACES[race];
-    if (r && r.moralitesInterdites && r.moralitesInterdites.includes(moralite)) {
-      const labMoral = {benefique:'Bénéfique', balancee:'Balancée', malefique:'Maléfique'}[moralite];
-      alertRace.innerHTML = `⛔ <b>Moralité incompatible :</b> La race <b>${r.label}</b> ne peut pas être de moralité <b>${labMoral}</b>.`;
+    const r = getDatabaseRaceOption(race);
+    const moralitesPermises = getAllowedMoralitesForRace(race);
+    if (moralitesPermises.length > 0 && !moralitesPermises.includes(moralite)) {
+      const labMoral = getDatabaseMoraliteOption(moralite)?.label || moralite;
+      alertRace.innerHTML = `⛔ <b>Moralité incompatible :</b> La base ne permet pas <b>${labMoral}</b> pour <b>${r?.label || race}</b>.`;
       alertRace.classList.add('show');
       ok = false;
     } else {
@@ -114,12 +113,10 @@ function validerMoraliteDivinite() {
     alertRace.classList.remove('show');
   }
 
-  if (religion && moralite) {
-    const d = DIVINITES[religion];
-    if (d && !d.moralites.includes(moralite)) {
-      const labMoral = {benefique:'Bénéfique', balancee:'Balancée', malefique:'Maléfique'}[moralite];
-      const permises = d.moralites.map(m=>({benefique:'Bénéfique',balancee:'Balancée',malefique:'Maléfique'}[m])).join(', ');
-      alertDiv.innerHTML = `⛔ <b>Moralité incompatible avec la divinité :</b> <b>${religion}</b> n'accepte pas la moralité <b>${labMoral}</b>. Moralités permises : ${permises}.`;
+  if (race && religion) {
+    const divinitesPermises = getAllowedDivinitiesForRace(race);
+    if (divinitesPermises.length > 0 && !divinitesPermises.includes(religion)) {
+      alertDiv.innerHTML = `⛔ <b>Divinité incompatible :</b> La base ne permet pas <b>${religion}</b> pour cette race.`;
       alertDiv.classList.add('show');
       ok = false;
     } else {

@@ -1,6 +1,8 @@
 // ===================== INIT =====================
 window.addEventListener("DOMContentLoaded", async () => {
-  await loadDatabaseOptions();
+  const databaseLoaded = await loadDatabaseOptions();
+  if (!databaseLoaded) return;
+
   updateMoraliteSelector();
 
   for (let i = 0; i < 8; i++) addComp();

@@ -38,8 +38,8 @@ function setStepState(id, state, message = "") {
 }
 
 function isMagicCareerSelected() {
-  const carriere = CARRIERES[v("carriere")];
-  return Boolean(carriere && (carriere.magie || carriere.ptsMagie > 0));
+  const carriere = getDatabaseCarriereOption(v("carriere"));
+  return carriereDonneAccesSorts(carriere);
 }
 
 function updateSelectionGuidance() {

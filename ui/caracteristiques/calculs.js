@@ -49,64 +49,19 @@ function onEventCountChange(){
   calcXP();
 }
 
-const COMPETENCE_PV_BONUS = {
-  'endurance simple': 1,
-  'endurance guerriere': 1
-};
-
-const RACE_PV_RULES = {
-  'humain': { value: 3, label: '3' },
-  'demi-elfe': { value: 3, label: '3' },
-  'elfe-gris': { value: 3, label: '3' },
-  'elfe-lunaire': { value: 3, label: '3 variable jour/nuit' },
-  'elfe-noir': { value: 3, label: '3' },
-  'elfe-sanguinaire': { value: 3, label: '3' },
-  'elfe-sauvage': { value: 3, label: '3' },
-  'etre-sylvestre': { value: 3, label: '3' },
-  'haut-elfe': { value: 3, label: '3' },
-  'nain': { value: 4, label: '4' },
-  'gobelin': { value: 4, label: '2 jour / 4 nuit' },
-  'orque': { value: 4, label: '4' },
-  'demi-demon': { value: 4, label: '4' },
-  'illithyd': { value: 3, label: '3' },
-  'norde': { value: 4, label: '4' },
-  'presque-humain': { value: 3, label: '3' },
-  'bossu': { value: 3, label: '3' },
-  'gitan': { value: 3, label: '3' },
-  'morgull': { value: 3, label: '3' },
-  'arboreen': { value: 3, label: '3' },
-  'corvus': { value: 3, label: '3' },
-  'rasgadan': { value: 3, label: '3' },
-  'ratfolk': { value: 3, label: '3' },
-  'saurien': { value: 3, label: '3' }
-};
-
 function getRacePvInfo(){
-  const race=v('race');
-  const r=RACES[race];
+  const r=getDatabaseRaceOption(v('race'));
   if(!r)return {value:3,label:'—'};
 
-  if(RACE_PV_RULES[race])return RACE_PV_RULES[race];
+  const pvJour=parseInt(r.pvJour,10)||3;
+  const pvNuit=parseInt(r.pvNuit,10)||pvJour;
 
-  return {value:parseInt(r.pv)||3,label:String(r.pv)};
+  if(pvJour!==pvNuit)return {value:Math.max(pvJour,pvNuit),label:`${pvJour} jour / ${pvNuit} nuit`};
+  return {value:pvJour,label:String(pvJour)};
 }
 
 function getCompetencePvBonus(){
-  let bonus=0;
-
-  document.querySelectorAll('#comp-tbody tr').forEach(row=>{
-    const sel=row.querySelector('.comp-sel');
-    if(!sel?.value)return;
-
-    const name=sel.value.split('|')[0]||'';
-    const key=normalizeCompetenceKey(name);
-    const count=parseInt(row.querySelector('.comp-count')?.value,10)||1;
-    const amount=COMPETENCE_PV_BONUS[key]||0;
-
-    bonus+=amount*count;
-  });
-
-  return bonus;
+  return 0;
 }
 
 function calcStats(){

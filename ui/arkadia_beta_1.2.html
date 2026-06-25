@@ -109,11 +109,11 @@
     </div>
     <div class="col">
       <label>Faiblesses (race / carrière)</label>
-      <input type="text" id="faiblesses" placeholder="Ex. Dégât maudit +1">
+      <input type="text" id="faiblesses" class="computed" placeholder="Aucun" readonly>
     </div>
     <div class="col">
       <label>Immunités</label>
-      <input type="text" id="immunites" placeholder="Ex. Charme, Sommeil">
+      <input type="text" id="immunites" class="computed" placeholder="Aucun" readonly>
     </div>
   </div>
 </div>
@@ -165,7 +165,7 @@
 <!-- SORTS -->
 <div class="card" id="card-sorts" style="display:none">
   <div class="stitle">V · Sorts</div>
-  <p class="note-hint">Ordre d'achat obligatoire : vous devez posséder au moins un sort de chaque niveau précédent. Carrière mixte : sorts jusqu'au niveau 5. Carrière magique pure : sorts jusqu'au niveau 10. Coût : 2 XP (niv. 1-3) · 3 XP (niv. 4-6) · 4 XP (niv. 7-9) · 5 XP (niv. 10)</p>
+  <p class="note-hint">Ordre d'achat obligatoire : vous devez posséder au moins un sort de chaque niveau précédent. Les niveaux et les coûts disponibles suivent la base de données.</p>
   <table class="comp-table">
     <thead><tr><th style="width:55px">Niveau</th><th>Nom du sort</th><th style="width:55px">XP</th><th></th></tr></thead>
     <tbody id="sorts-tbody"></tbody>
@@ -209,7 +209,6 @@
 </div>
 </div>
 
-<script src="js/data.js"></script>
 <script src="js/validations.js"></script>
 <script src="js/state.js"></script>
 <script src="js/guidance.js"></script>

@@ -118,7 +118,6 @@ function charger(d){
     setTimeout(()=>{sv('ecole',p.ecole);onEcole();},50);
     sv('maison',p.maison);sv('noblesse',p.noblesse);
     sv('pts-armure',p.ptsArmure);sv('type-armure',p.typeArmure);
-    sv('faiblesses',p.faiblesses);sv('immunites',p.immunites);
     sv('xp-total',p.evenementsParticipes ?? normaliserEvenementsParticipes(p.xpTotal,d.v));sv('ressources',p.ressources);
     eventCountBaseline=parseInt(v('xp-total'))||0;
     sv('titres',p.titres);sv('notes',p.notes);sv('bg',p.bg);
@@ -130,7 +129,7 @@ function charger(d){
   g('ev-tbody').innerHTML='';evRows=0;
   (d.evenements||[]).forEach(e=>addEv(e.ev,e.saison));
   calcEvXP();
-  calcXP();calcStats();
+  calcXP();calcStats();updateFaiblessesImmunites();
   validerCombinaisonRaceCarriere();
   validerMoraliteDivinite();
 }

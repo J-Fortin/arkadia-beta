@@ -1,67 +1,8 @@
 // ===================== COMPÉTENCES =====================
 const SURCOUT_CARRIERE_MIXTE = 1;
 
-const RACE_COMPETENCE_RULES = {
-  'elfe-sauvage': {
-    interdites: ['Lecture et écriture']
-  },
-  'gobelin': {
-    interdites: [
-      'Arme non conventionnelle (91-130cm)',
-      'Arme non conventionnelle (131cm+)',
-      'Arme non conventionnelle - 2 mains',
-      'Arme non conventionnelle - Colossale'
-    ]
-  }
-};
-
-const RACE_COMPETENCE_OPTIONS = {
-  'demi-elfe': [
-    { nom: 'Archerie', xp: 2, cat: 'Raciale', note: 'rabais racial' },
-    { nom: 'Lecture et écriture', xp: 1, cat: 'Raciale', note: 'rabais racial' }
-  ],
-  'haut-elfe': [
-    { nom: 'Noblesse', xp: 0, cat: 'Raciale', gratuit: true }
-  ],
-  'nain': [
-    { nom: 'Forge', xp: 0, cat: 'Raciale', gratuit: true },
-    { nom: 'Bravoure', xp: 0, cat: 'Raciale', gratuit: true }
-  ],
-  'gobelin': [
-    { nom: 'Forge', xp: 0, cat: 'Raciale', gratuit: true }
-  ]
-};
-
-const RACE_CAREER_COMPETENCE_OPTIONS = [
-  {
-    nom: 'Rage animale',
-    xp: 0,
-    cat: 'Raciale',
-    races: ['arboreen','corvus','rasgadan','ratfolk','saurien'],
-    carrieres: ['totem'],
-    gratuit: true
-  },
-  {
-    nom: 'Charognard',
-    xp: 0,
-    cat: 'Raciale',
-    races: ['gobelin','orque','demi-demon','norde','corvus','rasgadan','ratfolk','saurien','morgull'],
-    carrieres: null,
-    gratuit: true
-  },
-  {
-    nom: 'Art mystique',
-    xp: 0,
-    cat: 'Raciale',
-    races: ['arboreen','corvus','rasgadan','ratfolk','saurien'],
-    carrieres: ['totem','druide','chaman','animiste','rodeur'],
-    gratuit: true
-  }
-];
-
 function carriereEstMixte() {
-  const carriere = CARRIERES[v('carriere')];
-  return Boolean(carriere && /mixte/i.test(carriere.info || ''));
+  return Boolean(getDatabaseCarriereOption(v('carriere'))?.mixte);
 }
 
 function isCareerCategory(cat) {
@@ -69,33 +10,11 @@ function isCareerCategory(cat) {
 }
 
 function getMixedCareerSources() {
-  const carriere = CARRIERES[v('carriere')];
-  const info = carriere?.info || '';
-  const accessMatch = info.match(/Accès\s*:\s*([^.<]+)/i);
-  if (!accessMatch) return [];
-
-  return accessMatch[1]
-    .split('+')
-    .map(label => label.trim())
-    .map(label => {
-      const key = Object.keys(CARRIERES).find(carKey => {
-        return normalizeCompetenceKey(CARRIERES[carKey].label) === normalizeCompetenceKey(label);
-      });
-
-      return key ? { key, label: CARRIERES[key].label } : null;
-    })
-    .filter(Boolean);
+  return [];
 }
 
 function competenceExisteDansCarriereSource(nom, sourceKey) {
-  const source = CARRIERES[sourceKey];
-  const normalized = normalizeCompetenceKey(nom);
-  const sourceCompetences = [
-    ...(source?.competences?.carriere || []),
-    ...(source?.competences?.privilege || [])
-  ];
-
-  return sourceCompetences.some(entry => normalizeCompetenceKey(entry.split('|')[0]) === normalized);
+  return false;
 }
 
 function getMixedCareerCategory(nom) {
@@ -113,21 +32,6 @@ function annuleSurcoutMixte() {
 }
 
 function competenceEstPermiseParRace(nom) {
-  const race = v('race');
-  const rules = RACE_COMPETENCE_RULES[race] || {};
-  const raceData = RACES[race] || {};
-  const interdites = [
-    ...(rules.interdites || []),
-    ...(raceData.competencesInterdites || [])
-  ];
-  const requises = [
-    ...(rules.mustBe || []),
-    ...(raceData.competencesMustBe || [])
-  ];
-
-  if (interdites.some(interdite => nom === interdite || nom.startsWith(interdite))) return false;
-  if (requises.length > 0 && !requises.some(requise => nom === requise || nom.startsWith(requise))) return false;
-
   return true;
 }
 
@@ -142,81 +46,16 @@ function getCompetenceMeta(nom, cat='') {
     || {};
 }
 
-const LOCAL_CUMULABLE_PATTERNS = [
-  /^abjuration$/,
-  /^ambidextrie$/,
-  /^archerie/,
-  /^arme a feu$/,
-  /^arme de jet/,
-  /^arme non conventionnelle/,
-  /^attaque sournoise$/,
-  /^baton de pouvoir$/,
-  /^bouclier$/,
-  /^bouclier avance/,
-  /^bravoure$/,
-  /^charge$/,
-  /^charge accrue$/,
-  /^clairvoyance$/,
-  /^concoction /,
-  /^contact marchand/,
-  /^contre charge$/,
-  /^coup fracassant$/,
-  /^coup puissant$/,
-  /^creation accrue$/,
-  /^crochetage$/,
-  /^deguisement$/,
-  /^desarmement$/,
-  /^dissimulation d objet$/,
-  /^endurance guerriere$/,
-  /^endurance naturelle a la magie$/,
-  /^endurance simple$/,
-  /^falsification$/,
-  /^fatigue attenuee$/,
-  /^ferveur magique$/,
-  /^force brute$/,
-  /^forge$/,
-  /^heraldique$/,
-  /^invocation guerriere$/,
-  /^lame affutee$/,
-  /^lecture et ecriture/,
-  /^maitre ambidextre$/,
-  /^messe$/,
-  /^mulet de bataille$/,
-  /^noblesse$/,
-  /^orientation planaire$/,
-  /^parchemins magiques/,
-  /^port d armure specialisee$/,
-  /^rage animale$/,
-  /^religion$/,
-  /^renvoi de sort$/,
-  /^restauration$/,
-  /^rituel$/,
-  /^sang impur$/,
-  /^sang pur$/,
-  /^serrurier$/,
-  /^talisman avance/,
-  /^torture$/,
-  /^touche a tout /,
-  /^transfert de vitalite en mana$/,
-  /^vol a la tire$/
-];
-
-function getLocalCumulableMax(nom) {
-  const normalized = normalizeCompetenceKey(nom);
-  return LOCAL_CUMULABLE_PATTERNS.some(pattern => pattern.test(normalized)) ? 5 : 1;
-}
-
 function getCumulableMax(nom, cat='') {
-  return parseInt(getCompetenceMeta(nom, cat).cumulableMax, 10) || getLocalCumulableMax(nom);
+  return parseInt(getCompetenceMeta(nom, cat).cumulableMax, 10) || 1;
 }
 
 function xpFinalCompetence(rawXp, cat, gratuit=false) {
   const base = parseXP(rawXp);
   if (gratuit) return 0;
 
-  const surcoutMixteDejaInclus = carriereEstMixte() && isCareerCategory(cat);
-  if (surcoutMixteDejaInclus && annuleSurcoutMixte()) {
-    return Math.max(0, base - SURCOUT_CARRIERE_MIXTE);
+  if (carriereEstMixte() && isCareerCategory(cat) && !annuleSurcoutMixte()) {
+    return base + SURCOUT_CARRIERE_MIXTE;
   }
 
   return base;
@@ -239,18 +78,11 @@ function addOptionUnique(all, option, seen) {
 }
 
 function getRaceOptions() {
-  return RACE_COMPETENCE_OPTIONS[v('race')] || [];
+  return [];
 }
 
 function getRaceCareerOptions() {
-  const race = v('race');
-  const carriere = v('carriere');
-
-  return RACE_CAREER_COMPETENCE_OPTIONS.filter(option => {
-    const raceOk = !option.races || option.races.includes(race);
-    const carriereOk = !option.carrieres || option.carrieres.includes(carriere);
-    return raceOk && carriereOk;
-  });
+  return [];
 }
 
 function updateCompetences(){
@@ -287,44 +119,13 @@ function updateCompetences(){
 
 function getCompOptions(){
   const carr=v('carriere');
-  const c=CARRIERES[carr];
-  if(!c)return[];
+  const race=v('race');
 
-  const all=[];
-  const seen=new Set();
-  const gratuits=c.competences.gratuit||[];
-
-  getRaceOptions().forEach(option => {
-    if(!competenceEstPermiseParRace(option.nom))return;
-    addOptionUnique(all, {...option, gratuit: Boolean(option.gratuit)}, seen);
+  return getDatabaseCompetenceOptions().filter(option => {
+    const carriereOk=!option.carriere || option.carriere===carr;
+    const raceOk=!option.race || option.race===race;
+    return carriereOk && raceOk;
   });
-
-  getRaceCareerOptions().forEach(option => {
-    if(!competenceEstPermiseParRace(option.nom))return;
-    addOptionUnique(all, {...option, gratuit: Boolean(option.gratuit)}, seen);
-  });
-
-  (c.competences.generales||[]).forEach(x=>{
-    const [nom,xp]=x.split('|');
-    if(!competenceEstPermiseParRace(nom))return;
-    const gratuit=gratuits.some(g=>nom.startsWith(g));
-    addOptionUnique(all, {nom,xp:gratuit?'0':xp,cat:'Générale',gratuit}, seen);
-  });
-
-  (c.competences.carriere||[]).forEach(x=>{
-    const [nom,xp]=x.split('|');
-    if(!competenceEstPermiseParRace(nom))return;
-    const cat=carriereEstMixte()?getMixedCareerCategory(nom):'Carrière';
-    addOptionUnique(all, {nom,xp,cat,gratuit:false}, seen);
-  });
-
-  (c.competences.privilege||[]).forEach(x=>{
-    const [nom,xp]=x.split('|');
-    if(!competenceEstPermiseParRace(nom))return;
-    addOptionUnique(all, {nom,xp,cat:'Privilège ★',gratuit:false}, seen);
-  });
-
-  return all;
 }
 
 function rebuildCompSelect(sel){
@@ -347,7 +148,7 @@ function rebuildCompSelect(sel){
       const gratuit=Boolean(o.gratuit);
       const xpNum=xpFinalCompetence(o.xp, o.cat, gratuit);
       const meta=getCompetenceMeta(o.nom, cat);
-      const cumulableMax=getCumulableMax(o.nom, cat);
+      const cumulableMax=parseInt(o.cumulableMax,10)||getCumulableMax(o.nom, cat);
       const frequencyLabel=meta.frequence?` · ${meta.frequence}`:'';
       const cumulableLabel=cumulableMax>1?` · max ${cumulableMax}`:'';
       const note=o.note?` [${o.note}]`:noteCoutMixte(o.cat, gratuit);
@@ -424,11 +225,8 @@ function addComp(nomVal='',xpVal='',freqVal='',countVal='1'){
       if(opt.value.startsWith(nomVal+'|')){sel.value=opt.value;found=true;break;}
     }
     if(!found){
-      const opt=document.createElement('option');
-      opt.value=`${nomVal}|${xpVal||0}||Importée|1`;
-      opt.textContent=`${nomVal} [importée]`;
-      sel.appendChild(opt);
-      sel.value=opt.value;
+      onCompSel(sel,id,'','','1');
+      return;
     }
     onCompSel(sel,id,xpVal,freqVal,countVal);
   }

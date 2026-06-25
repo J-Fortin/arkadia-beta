@@ -1,11 +1,13 @@
 // ===================== SORTS =====================
 function getSortMaxLevel(){
-  const c=CARRIERES[v('carriere')];
-  if(!c || !(c.magie || c.ptsMagie>0))return 0;
-  return carriereEstMixte()?5:10;
+  const c=getDatabaseCarriereOption(v('carriere'));
+  return getCarriereSortMaxLevel(c);
 }
 
-function sortXpCost(level){
+function sortXpCost(level,ecole=v('ecole'),nom=''){
+  const databaseXp=typeof getSortXpFromDatabase==='function'?getSortXpFromDatabase(ecole,level,nom):null;
+  if(databaseXp)return databaseXp;
+
   return level<=3?2:level<=6?3:level<=9?4:5;
 }
 
@@ -79,12 +81,12 @@ function clearLockedSortRows(){
 
 function updateSortOptions(sel,level){
   const ecole=v('ecole');
-  const lvlSorts=(ecole&&level&&SORTS[ecole])?SORTS[ecole][level]||[]:[];
+  const lvlSorts=(ecole&&level&&typeof getSortEntries==='function')?getSortEntries(ecole,level):[];
   const cur=sel.value;
   sel.innerHTML='<option value="">-- Choisir --</option>';
 
   if(lvlSorts.length>0){
-    sortByText(lvlSorts).forEach(s=>{
+    sortByText(lvlSorts.map(s=>s.nom)).forEach(s=>{
       const o=document.createElement('option');
       o.value=s;
       o.textContent=s;
@@ -127,7 +129,7 @@ function addSort(nivVal='',nomVal='',xpVal=''){
   sortRows++;
   const id='sort-'+sortRows;
   const lvlNum=parseInt(nivVal)||0;
-  const xpCost=xpVal!==''?xpVal:(lvlNum?sortXpCost(lvlNum):'');
+  const xpCost=xpVal!==''?xpVal:(lvlNum?sortXpCost(lvlNum,v('ecole'),nomVal):'');
   const tr=document.createElement('tr');
   tr.id=id;
   tr.innerHTML=`
@@ -170,7 +172,7 @@ function onSortLvl(sel,rowId){
   const xpIn=row.querySelector('.sort-xp');
 
   if(lvl){
-    xpIn.value=sortXpCost(lvl);
+    xpIn.value=sortXpCost(lvl,v('ecole'),nomSel.value);
     updateSortOptions(nomSel,lvl);
   } else {
     xpIn.value='';
@@ -181,5 +183,9 @@ function onSortLvl(sel,rowId){
 }
 
 function onSortNomSel(sel,rowId){
+  const row=g(rowId);
+  const lvl=parseInt(row?.querySelector('.sort-lvl-sel')?.value)||null;
+  const xpIn=row?.querySelector('.sort-xp');
+  if(lvl&&xpIn)xpIn.value=sortXpCost(lvl,v('ecole'),sel.value);
   refreshAllSortRows();
 }

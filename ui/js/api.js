@@ -94,31 +94,103 @@ function buildCompetenceMetaIndex(meta) {
   });
 }
 
-function optionsFromObject(source) {
-  return Object.entries(source).map(([value, item]) => ({
-    value,
-    label: item.label || value
-  }));
+function getDatabaseCarriereOption(carriereKey = v("carriere")) {
+  return (DATABASE_OPTIONS?.carrieres || []).find((option) => option.value === carriereKey) || null;
 }
 
-function getLocalDatabaseOptions() {
-  return {
-    races: optionsFromObject(RACES),
-    carrieres: optionsFromObject(CARRIERES),
-    moralites: [
-      { value: "benefique", label: "Bénéfique" },
-      { value: "balancee", label: "Balancée" },
-      { value: "malefique", label: "Maléfique" }
-    ],
-    religions: Object.keys(DIVINITES).map((name) => ({
-      value: name,
-      label: name
-    })),
-    ecoles: Object.keys(SORTS).map((name) => ({
-      value: name,
-      label: name
-    }))
-  };
+function getDatabaseRaceOption(raceKey = v("race")) {
+  return (DATABASE_OPTIONS?.races || []).find((option) => option.value === raceKey) || null;
+}
+
+function getDatabaseReligionOption(religionKey = v("religion")) {
+  return (DATABASE_OPTIONS?.religions || []).find((option) => option.value === religionKey) || null;
+}
+
+function getDatabaseMoraliteOption(moraliteKey = v("moralite")) {
+  return (DATABASE_OPTIONS?.moralites || []).find((option) => option.value === moraliteKey) || null;
+}
+
+function getAllowedSchoolsForDivinite(divinite) {
+  const databaseSchools = DATABASE_OPTIONS?.ecolesParDivinite?.[divinite];
+  if (Array.isArray(databaseSchools) && databaseSchools.length > 0) return databaseSchools;
+
+  return [];
+}
+
+function getAllowedSchoolsForCarriere(carriereKey = v("carriere")) {
+  const databaseSchools = DATABASE_OPTIONS?.ecolesParCarriere?.[carriereKey];
+  return Array.isArray(databaseSchools) ? databaseSchools : [];
+}
+
+function getAllowedSchoolsForSelection(carriereKey = v("carriere"), divinite = v("religion")) {
+  const diviniteSchools = getAllowedSchoolsForDivinite(divinite);
+  const carriereSchools = getAllowedSchoolsForCarriere(carriereKey);
+
+  if (diviniteSchools.length > 0 && carriereSchools.length > 0) {
+    return sortByText(diviniteSchools.filter((ecole) => carriereSchools.includes(ecole)));
+  }
+
+  if (diviniteSchools.length > 0) return sortByText(diviniteSchools);
+  if (carriereSchools.length > 0) return sortByText(carriereSchools);
+
+  return [];
+}
+
+function getSortEntries(ecole, level = null) {
+  const databaseSorts = DATABASE_OPTIONS?.sorts?.[ecole];
+
+  if (databaseSorts) {
+    if (level) return databaseSorts[String(level)] || [];
+    return Object.values(databaseSorts).flat();
+  }
+
+  return [];
+}
+
+function getSortCountForEcole(ecole) {
+  return getSortEntries(ecole).length;
+}
+
+function getSortXpFromDatabase(ecole, level, nom = "") {
+  const entries = getSortEntries(ecole, level);
+  const selected = nom ? entries.find((entry) => entry.nom === nom) : null;
+  const xp = Number((selected || entries[0])?.xp);
+
+  return Number.isFinite(xp) && xp > 0 ? xp : null;
+}
+
+function getAllowedCareersForRace(raceKey = v("race")) {
+  return DATABASE_OPTIONS?.carrieresPermisesParRace?.[raceKey] || [];
+}
+
+function getAllowedMoralitesForRace(raceKey = v("race")) {
+  return DATABASE_OPTIONS?.moralitesPermisesParRace?.[raceKey] || [];
+}
+
+function getAllowedDivinitiesForRace(raceKey = v("race")) {
+  return DATABASE_OPTIONS?.divinitesPermisesParRace?.[raceKey] || [];
+}
+
+function getMoraliteOptionsForSelection(raceKey = v("race")) {
+  const allowed = getAllowedMoralitesForRace(raceKey);
+  const options = DATABASE_OPTIONS?.moralites || [];
+  if (allowed.length === 0) return options;
+  return options.filter((option) => allowed.includes(option.value));
+}
+
+function getReligionOptionsForSelection(raceKey = v("race")) {
+  const allowed = getAllowedDivinitiesForRace(raceKey);
+  const options = DATABASE_OPTIONS?.religions || [];
+  if (allowed.length === 0) return options;
+  return options.filter((option) => allowed.includes(option.value));
+}
+
+function getDatabaseCompetenceOptions() {
+  return DATABASE_OPTIONS?.competences || [];
+}
+
+function getEffectsFromDatabase(kind, key) {
+  return DATABASE_OPTIONS?.[kind]?.[key] || [];
 }
 
 function renderDatabaseOptions(options) {
@@ -143,10 +215,17 @@ async function loadDatabaseOptions() {
 
     return true;
   } catch (error) {
-    console.warn("Base de données non disponible, utilisation des choix locaux.", error);
+    console.error("Base de données non disponible.", error);
     COMPETENCE_META = {};
     buildCompetenceMetaIndex(COMPETENCE_META);
-    renderDatabaseOptions(getLocalDatabaseOptions());
+    DATABASE_OPTIONS = null;
+    ["race", "carriere", "moralite", "religion", "ecole"].forEach((id) => {
+      const select = g(id);
+      if (!select) return;
+      select.innerHTML = '<option value="">Base de données indisponible</option>';
+      select.disabled = true;
+    });
+    showInfo("race-info", "Base de données indisponible. Les choix ne sont pas générés localement.");
     return false;
   }
 }
