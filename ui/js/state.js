@@ -3,6 +3,8 @@ let pvBase=3,magiePts=0;
 let compRows=0,sortRows=0,evRows=0;
 let eventCountBaseline=0;
 let lastEventAbuseWarning='';
+let chanceCountBaseline=0;
+let lastChanceAbuseWarning='';
 
 function g(id){return document.getElementById(id)}
 function v(id){return g(id)?.value||''}
@@ -12,6 +14,10 @@ function showInfo(id,html){const el=g(id);if(el){el.innerHTML=html;el.style.disp
 
 function getSelectedCarriere(){
   return typeof getDatabaseCarriereOption==='function'?getDatabaseCarriereOption(v('carriere')):null;
+}
+
+function getSelectedRace(){
+  return typeof getDatabaseRaceOption==='function'?getDatabaseRaceOption(v('race')):null;
 }
 
 function getSelectedCarriereDatabaseOption(){
@@ -27,7 +33,7 @@ function carriereEstSemiMagique(carriere=getSelectedCarriere()){
 }
 
 function carriereDonneAccesSorts(carriere=getSelectedCarriere()){
-  return Boolean(carriere && (getCarriereMagicPoints(carriere)>0 || carriere.semiMagique || Number(carriere.maxMagique)>0));
+  return Boolean(carriere && (getCarriereMagicPoints(carriere)>0 || Number(carriere.maxMagique)>0));
 }
 
 function getCarriereSortMaxLevel(carriere=getSelectedCarriere()){
@@ -41,6 +47,17 @@ function getCarriereSortMaxLevel(carriere=getSelectedCarriere()){
 function addEffect(target, value) {
   if (!value || value === 'Aucune') return;
   if (!target.includes(value)) target.push(value);
+}
+
+function getRaceChanceMax(){
+  return Number(getSelectedRace()?.chances)||3;
+}
+
+function getSelectedRaceVariant(){
+  const race=getSelectedRace();
+  const variantValue=v('race-variant');
+  const variants=Array.isArray(race?.variants)?race.variants:[];
+  return variants.find(variant=>variant.value===variantValue)||null;
 }
 
 function selectedCompetenceNames() {
@@ -67,6 +84,10 @@ function updateFaiblessesImmunites(){
   getEffectsFromDatabase('faiblessesParCarriereMoralite', `${carriere}|${moralite}`).forEach(effect => addEffect(faiblesses, effect));
   getEffectsFromDatabase('immunitesParRace', race).forEach(effect => addEffect(immunites, effect));
   getEffectsFromDatabase('immunitesParCarriere', carriere).forEach(effect => addEffect(immunites, effect));
+
+  const variant=getSelectedRaceVariant();
+  (variant?.faiblesses || []).forEach(effect => addEffect(faiblesses, effect));
+  (variant?.immunites || []).forEach(effect => addEffect(immunites, effect));
 
   selectedCompetenceNames().forEach(name => {
     getEffectsFromDatabase('immunitesParCompetence', name).forEach(effect => addEffect(immunites, effect));

@@ -24,23 +24,24 @@
 <div class="card">
   <div class="stitle">I · Informations du Joueur</div>
   <div class="row">
-    <div class="col-2"><label>Prénom et Nom du joueur</label><input type="text" id="j-nom" placeholder="Ex. Annie Carigan"></div>
+    <div class="col-2"><label class="required-label">Prénom et Nom du joueur</label><input type="text" id="j-nom" placeholder="Ex. Annie Carigan" required></div>
     <div class="col"><label>Date de naissance</label><input type="date" id="j-naiss"></div>
     <div class="col"><label>Date du 1er Arkadia</label><input type="date" id="j-premier"></div>
   </div>
   <div class="row">
-    <div class="col"><label>Téléphone</label><input type="text" id="j-tel" placeholder="418-000-0000"></div>
-    <div class="col"><label>Courriel</label><input type="email" id="j-email" placeholder="joueur@example.com"></div>
+    <div class="col"><label class="required-label">Téléphone</label><input type="text" id="j-tel" placeholder="418-000-0000" required></div>
+    <div class="col"><label class="required-label">Courriel</label><input type="email" id="j-email" placeholder="joueur@example.com" required></div>
     <div class="col-2"><label>Allergies</label><input type="text" id="j-allergies" placeholder="Aucune, ou précisez"></div>
   </div>
   <div class="row">
-    <div class="col-2"><label>Contact d'urgence #1 (Prénom Nom – lien)</label><input type="text" id="u1-nom"></div>
-    <div class="col"><label>Téléphone</label><input type="text" id="u1-tel"></div>
+    <div class="col-2"><label class="required-label">Contact d'urgence #1 (Prénom Nom – lien)</label><input type="text" id="u1-nom" required></div>
+    <div class="col"><label class="required-label">Téléphone</label><input type="text" id="u1-tel" required></div>
   </div>
   <div class="row">
-    <div class="col-2"><label>Contact d'urgence #2 (Prénom Nom – lien)</label><input type="text" id="u2-nom"></div>
-    <div class="col"><label>Téléphone</label><input type="text" id="u2-tel"></div>
+    <div class="col-2"><label class="required-label">Contact d'urgence #2 (Prénom Nom – lien)</label><input type="text" id="u2-nom" required></div>
+    <div class="col"><label class="required-label">Téléphone</label><input type="text" id="u2-tel" required></div>
   </div>
+  <div id="alert-joueur" class="alert"></div>
 </div>
 
 <!-- PERSONNAGE -->
@@ -65,6 +66,13 @@
     </div>
   </div>
   <div id="race-info" class="info-box"></div>
+  <div id="race-variant-wrap" class="row" style="display:none">
+    <div class="col">
+      <label id="race-variant-label">Choix racial</label>
+      <select id="race-variant" onchange="onRaceVariant()"></select>
+      <div id="race-variant-info" class="field-hint"></div>
+    </div>
+  </div>
   <div id="carr-info" class="info-box"></div>
   <div id="alert-race-carriere" class="alert"></div>
   <div id="alert-moralite-race" class="alert"></div>
@@ -78,6 +86,12 @@
         <option value="">Chargement des divinités...</option>
       </select>
     </div>
+    <div class="col" id="religion-2-wrap" style="display:none">
+      <label>Divinité secondaire</label>
+      <select id="religion-2" onchange="onReligion2()">
+        <option value="">Aucune</option>
+      </select>
+    </div>
     <div class="col">
       <label>Moralité</label>
       <select id="moralite" onchange="onMoralite()">
@@ -85,12 +99,19 @@
       </select>
     </div>
     <div class="col">
-      <label>École(s) de magie</label>
+      <label id="ecole-label">École(s) de magie</label>
       <select id="ecole" onchange="onEcole()" style="display:none">
         <option value="">Chargement des écoles...</option>
       </select>
       <input type="text" id="ecole-txt" placeholder="Choisir d'abord la carrière et la divinité" readonly style="cursor:not-allowed;opacity:.7">
       <div id="ecole-badge" class="field-hint warning" style="display:none">Selon la divinité</div>
+    </div>
+    <div class="col" id="ecole-2-wrap" style="display:none">
+      <label id="ecole-2-label">École secondaire</label>
+      <select id="ecole-2" onchange="onEcole2()">
+        <option value="">Choisir une deuxième école</option>
+      </select>
+      <div id="ecole-2-badge" class="field-hint warning" style="display:none">Deuxième école disponible</div>
     </div>
     <div class="col">
       <label>Noblesse</label>
@@ -125,9 +146,10 @@
     <div class="stat-box"><span class="slabel">Points de Vie</span><div class="sval" id="sv-pv">—</div></div>
     <div class="stat-box"><span class="slabel">Points d'Armure</span><input id="pts-armure" type="number" min="0" max="10" value="0" oninput="calcStats()"></div>
     <div class="stat-box"><span class="slabel">Points de Magie</span><div class="sval" id="sv-magie">—</div></div>
-    <div class="stat-box"><span class="slabel">Chances / Saison</span><div class="sval" id="sv-chances">—</div></div>
+    <div class="stat-box"><span class="slabel">Chances / Saison</span><input id="chances-actuelles" type="number" min="0" value="0" oninput="onChanceChange()"><div class="field-hint" id="sv-chances">max —</div></div>
   </div>
   <div id="alert-pv" class="alert">⚠ PV + Armure ne peut dépasser 10 points (sauf transformation spéciale).</div>
+  <div id="alert-chances-abus" class="alert"></div>
   <div class="row">
     <div class="col"><label>Type d'armure portée</label><input type="text" id="type-armure" placeholder="Ex. métal rigide torse + bras"></div>
     <div class="col"><label>Background / Notes personnage</label><input type="text" id="bg" placeholder="Courte description, lien bg complet..."></div>
@@ -152,6 +174,7 @@
 <div class="card">
   <div class="stitle">IV · Compétences</div>
   <p class="note-hint">Les compétences disponibles sont filtrées selon votre race et carrière. Le coût est automatiquement ajusté. Les compétences gratuites apparaissent avec la mention <span class="tag-gratuit">[GRATUIT]</span>.</p>
+  <div id="human-comp-hint" class="field-hint warning" style="display:none"></div>
   <div id="alert-comp" class="alert">⚠ Choisissez d'abord une race et une carrière pour voir les compétences disponibles.</div>
   <table class="comp-table">
     <thead><tr><th style="width:48%">Compétence</th><th>Fréquence</th><th style="width:62px">Fois</th><th style="width:55px">XP</th><th></th></tr></thead>
@@ -165,9 +188,9 @@
 <!-- SORTS -->
 <div class="card" id="card-sorts" style="display:none">
   <div class="stitle">V · Sorts</div>
-  <p class="note-hint">Ordre d'achat obligatoire : vous devez posséder au moins un sort de chaque niveau précédent. Les niveaux et les coûts disponibles suivent la base de données.</p>
+  <p class="note-hint">Ordre d'achat obligatoire : vous devez posséder au moins un sort de chaque niveau précédent. Les niveaux et les coûts disponibles suivent la base de données; une carrière semi-magique ajoute +1 XP par sort.</p>
   <table class="comp-table">
-    <thead><tr><th style="width:55px">Niveau</th><th>Nom du sort</th><th style="width:55px">XP</th><th></th></tr></thead>
+    <thead><tr><th style="width:22%">École</th><th style="width:55px">Niveau</th><th>Nom du sort</th><th style="width:55px">XP</th><th></th></tr></thead>
     <tbody id="sorts-tbody"></tbody>
   </table>
   <div style="text-align:right;margin-top:.7rem" class="no-print">
@@ -205,7 +228,7 @@
 <div class="btn-row no-print">
   <button class="btn-p" onclick="exporterExcel()">Exporter Excel</button>
   <button class="btn-s" onclick="envoyer()">Envoyer</button>
-  <input type="file" id="fi" accept=".json,.xlsx" style="display:none" onchange="lire(event)">
+  <input type="file" id="fi" accept=".json,.xlsx,.pdf,.jpg,.jpeg,.png" style="display:none" onchange="lire(event)">
 </div>
 </div>
 

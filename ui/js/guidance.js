@@ -50,13 +50,13 @@ function updateSelectionGuidance() {
   const hasReligion = Boolean(v("religion"));
   const hasMoralite = Boolean(v("moralite"));
   const needsEcole = isMagicCareerSelected();
-  const hasEcole = Boolean(v("ecole"));
+  const hasEcole = typeof getSelectedSpellSchools === "function" ? getSelectedSpellSchools().length > 0 : Boolean(v("ecole"));
 
   if (hasRace) setStepState("race", "done", "Race sélectionnée");
   if (hasCarriere) setStepState("carriere", "done", "Carrière sélectionnée");
   if (hasReligion) setStepState("religion", "done", "Religion sélectionnée");
   if (hasMoralite) setStepState("moralite", "done", "Moralité permise sélectionnée");
-  if (needsEcole && hasEcole) setStepState("ecole", "done", "École sélectionnée");
+  if (needsEcole && hasEcole) setStepState("ecole", "done", "École(s) sélectionnée(s)");
 
   if (!hasRace) {
     setStepState("race", "active", STEP_MESSAGES.race);

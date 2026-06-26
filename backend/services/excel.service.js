@@ -383,11 +383,17 @@ function readTable(rows, startRow, endRow, mapper) {
 
   for (let rowNumber = startRow + 2; rowNumber < endRow; rowNumber++) {
     const row = rows.get(rowNumber);
-    if (!row?.A || row.A === "Aucune donnee") continue;
+    if (!row?.A || row.A === "Aucune donnee" || row.A === "Aucune donnée") continue;
     items.push(mapper(row));
   }
 
   return items;
+}
+
+function splitContactValue(value) {
+  const parts = String(value || "").split(/\s+-\s+|\s+\|\s+|[,;]/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) return { nom: parts[0], tel: parts.slice(1).join(" ") };
+  return { nom: value || "", tel: "" };
 }
 
 function labelValueRows(startRow, title, pairs) {
@@ -450,12 +456,17 @@ function buildSheet(data) {
     ["Nom", personnage.nom],
     ["Date du 1er événement", personnage.premier],
     ["Race", personnage.race],
+    ["Choix racial", personnage.raceVariant],
     ["Carrière", personnage.carriere],
     ["Religion / Divinité", personnage.religion],
+    ["Divinité secondaire", personnage.religion2],
     ["Moralité", personnage.moralite],
     ["École de magie", personnage.ecole],
+    ["École de magie secondaire", personnage.ecole2],
     ["Noblesse", personnage.noblesse],
     ["Maison / Titre", personnage.maison],
+    ["Chances actuelles", personnage.chancesActuelles],
+    ["Chances maximum", personnage.chancesMax],
     ["Faiblesses", personnage.faiblesses],
     ["Immunités", personnage.immunites],
     ["Ressources", personnage.ressources],
@@ -468,7 +479,7 @@ function buildSheet(data) {
   block = labelValueRows(row, "XP", [
     ["Événements participés", audit.eventCountCurrent ?? personnage.evenementsParticipes],
     ["XP événements", personnage.xpEvenements],
-    ["Avertissement anti-abus", audit.eventAbuseWarning]
+    ["Avertissement anti-abus", [audit.eventAbuseWarning, audit.chanceAbuseWarning].filter(Boolean).join(" | ")]
   ]);
   rows.push(...block.rows); row = block.nextRow;
 
@@ -480,10 +491,11 @@ function buildSheet(data) {
   ]);
   rows.push(...block.rows); row = block.nextRow;
 
-  block = tableRows(row, "Sorts", ["Niveau", "Nom", "XP"], sorts, (item, r) => [
-    numberCell(r, 1, item.lvl),
-    textCell(r, 2, item.nom),
-    numberCell(r, 3, item.xp)
+  block = tableRows(row, "Sorts", ["École", "Niveau", "Nom", "XP"], sorts, (item, r) => [
+    textCell(r, 1, item.ecole || personnage.ecole),
+    numberCell(r, 2, item.lvl),
+    textCell(r, 3, item.nom),
+    numberCell(r, 4, item.xp)
   ]);
   rows.push(...block.rows); row = block.nextRow;
 
@@ -543,7 +555,7 @@ export async function parseCharacterWorkbook(buffer) {
     return next ? sections.get(next) : lastRow + 1;
   }
 
-  const data = { v: "2.4", joueur: {}, personnage: {}, audit: {}, competences: [], sorts: [], evenements: [] };
+  const data = { v: "2.5", joueur: {}, personnage: {}, audit: {}, competences: [], sorts: [], evenements: [] };
 
   readLabelBlock(rows, sections.get("Informations du joueur"), sectionEnd("Informations du joueur"), {
     "Nom": "nom",
@@ -551,19 +563,35 @@ export async function parseCharacterWorkbook(buffer) {
     "Date du 1er Arkadia": "premier",
     "Téléphone": "tel",
     "Courriel": "email",
-    "Allergies": "allergies"
+    "Allergies": "allergies",
+    "Contact urgence #1": "u1contact",
+    "Contact urgence #2": "u2contact"
   }, data.joueur);
+
+  const contact1 = splitContactValue(data.joueur.u1contact);
+  const contact2 = splitContactValue(data.joueur.u2contact);
+  data.joueur.u1nom = data.joueur.u1nom || contact1.nom;
+  data.joueur.u1tel = data.joueur.u1tel || contact1.tel;
+  data.joueur.u2nom = data.joueur.u2nom || contact2.nom;
+  data.joueur.u2tel = data.joueur.u2tel || contact2.tel;
+  delete data.joueur.u1contact;
+  delete data.joueur.u2contact;
 
   readLabelBlock(rows, sections.get("Personnage"), sectionEnd("Personnage"), {
     "Nom": "nom",
     "Date du 1er événement": "premier",
     "Race": "race",
+    "Choix racial": "raceVariant",
     "Carrière": "carriere",
     "Religion / Divinité": "religion",
+    "Divinité secondaire": "religion2",
     "Moralité": "moralite",
     "École de magie": "ecole",
+    "École de magie secondaire": "ecole2",
     "Noblesse": "noblesse",
     "Maison / Titre": "maison",
+    "Chances actuelles": "chancesActuelles",
+    "Chances maximum": "chancesMax",
     "Faiblesses": "faiblesses",
     "Immunités": "immunites",
     "Ressources": "ressources",
@@ -577,6 +605,10 @@ export async function parseCharacterWorkbook(buffer) {
     "XP événements": "xpEvenements"
   }, data.personnage);
 
+  readLabelBlock(rows, sections.get("XP"), sectionEnd("XP"), {
+    "Avertissement anti-abus": "eventAbuseWarning"
+  }, data.audit);
+
   data.competences = readTable(rows, sections.get("Compétences"), sectionEnd("Compétences"), (row) => ({
     nom: row.A || "",
     freq: row.B || "",
@@ -584,11 +616,13 @@ export async function parseCharacterWorkbook(buffer) {
     xp: row.D || "0"
   }));
 
-  data.sorts = readTable(rows, sections.get("Sorts"), sectionEnd("Sorts"), (row) => ({
-    lvl: row.A || "",
-    nom: row.B || "",
-    xp: row.C || "0"
-  }));
+  const sortHeader = rows.get(sections.get("Sorts") + 1) || {};
+  const sortsHaveSchoolColumn = sortHeader.A === "École";
+  data.sorts = readTable(rows, sections.get("Sorts"), sectionEnd("Sorts"), (row) => (
+    sortsHaveSchoolColumn
+      ? { ecole: row.A || "", lvl: row.B || "", nom: row.C || "", xp: row.D || "0" }
+      : { lvl: row.A || "", nom: row.B || "", xp: row.C || "0" }
+  ));
 
   data.evenements = readTable(rows, sections.get("Historique des événements"), sectionEnd("Historique des événements"), (row) => ({
     ev: row.A || "",
@@ -597,5 +631,7 @@ export async function parseCharacterWorkbook(buffer) {
   }));
 
   data.audit.eventCountCurrent = Number(data.personnage.evenementsParticipes) || data.evenements.length;
+  data.audit.chanceCountCurrent = Number(data.personnage.chancesActuelles) || 0;
+  data.audit.chanceMax = Number(data.personnage.chancesMax) || 0;
   return data;
 }

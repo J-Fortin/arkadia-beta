@@ -1,9 +1,9 @@
 // ===================== SAVE / LOAD =====================
 function collecterFiche(){
-  const data={v:'2.4',
+  const data={v:'2.6',
     joueur:{nom:v('j-nom'),naiss:v('j-naiss'),premier:v('j-premier'),tel:v('j-tel'),email:v('j-email'),allergies:v('j-allergies'),u1nom:v('u1-nom'),u1tel:v('u1-tel'),u2nom:v('u2-nom'),u2tel:v('u2-tel')},
-    personnage:{nom:v('p-nom'),premier:v('p-premier'),race:v('race'),carriere:v('carriere'),moralite:v('moralite'),religion:v('religion'),ecole:v('ecole'),maison:v('maison'),noblesse:v('noblesse'),ptsArmure:v('pts-armure'),typeArmure:v('type-armure'),faiblesses:v('faiblesses'),immunites:v('immunites'),evenementsParticipes:v('xp-total'),xpEvenements:(parseInt(v('xp-total'))||0)*3,xpTotal:v('xp-total'),ressources:v('ressources'),titres:v('titres'),notes:v('notes'),bg:v('bg')},
-    audit:{eventCountBaseline,eventCountCurrent:parseInt(v('xp-total'))||0,eventAbuseWarning:getEventAbuseWarning()},
+    personnage:{nom:v('p-nom'),premier:v('p-premier'),race:v('race'),raceVariant:v('race-variant'),carriere:v('carriere'),moralite:v('moralite'),religion:v('religion'),religion2:v('religion-2'),ecole:v('ecole'),ecole2:v('ecole-2'),maison:v('maison'),noblesse:v('noblesse'),ptsArmure:v('pts-armure'),typeArmure:v('type-armure'),chancesActuelles:v('chances-actuelles'),chancesMax:getRaceChanceMax(),faiblesses:v('faiblesses'),immunites:v('immunites'),evenementsParticipes:v('xp-total'),xpEvenements:(parseInt(v('xp-total'))||0)*3,xpTotal:v('xp-total'),ressources:v('ressources'),titres:v('titres'),notes:v('notes'),bg:v('bg')},
+    audit:{eventCountBaseline,eventCountCurrent:parseInt(v('xp-total'))||0,eventAbuseWarning:getEventAbuseWarning(),chanceCountBaseline,chanceCountCurrent:parseInt(v('chances-actuelles'))||0,chanceMax:getRaceChanceMax(),chanceAbuseWarning:getChanceAbuseWarning()},
     competences:[],sorts:[],evenements:[]
   };
 
@@ -18,10 +18,11 @@ function collecterFiche(){
   });
 
   document.querySelectorAll('#sorts-tbody tr').forEach(tr=>{
+    const ecole=tr.querySelector('.sort-ecole-sel')?.value||v('ecole');
     const lvl=tr.querySelector('.sort-lvl-sel')?.value||'';
     const nom=tr.querySelector('.sort-nom-sel')?.value||'';
     const xp=tr.querySelector('.sort-xp')?.value||'0';
-    if(lvl||nom)data.sorts.push({lvl,nom,xp});
+    if(ecole||lvl||nom)data.sorts.push({ecole,lvl,nom,xp});
   });
 
   document.querySelectorAll('#ev-tbody tr').forEach(tr=>{
@@ -80,13 +81,15 @@ async function envoyer(){
 
 async function lire(event){
   const file=event.target.files[0];if(!file)return;
+  const extension=file.name.toLowerCase().split('.').pop();
+  const backendFormats=new Set(['xlsx','xlsm','pdf','jpg','jpeg','png']);
 
-  if(file.name.toLowerCase().endsWith('.xlsx')){
+  if(backendFormats.has(extension)){
     try{
-      charger(await importerFicheExcel(file));
+      charger(await importerFiche(file));
     }catch(error){
       console.error(error);
-      alert("Fichier Excel invalide ou backend non disponible.");
+      alert(error?.message || "Fichier invalide ou backend non disponible.");
     }
     return;
   }
@@ -103,6 +106,7 @@ function normaliserEvenementsParticipes(valeur, version='2.2'){
 }
 
 function charger(d){
+  let fallbackEcole='';
   if(d.joueur){
     sv('j-nom',d.joueur.nom);sv('j-naiss',d.joueur.naiss);sv('j-premier',d.joueur.premier);
     sv('j-tel',d.joueur.tel);sv('j-email',d.joueur.email);sv('j-allergies',d.joueur.allergies);
@@ -112,12 +116,18 @@ function charger(d){
     const p=d.personnage;
     sv('p-nom',p.nom);sv('p-premier',p.premier);
     sv('race',p.race);onRace();
+    if(p.raceVariant){sv('race-variant',p.raceVariant);onRaceVariant();}
     sv('carriere',p.carriere);onCarriere();
     sv('religion',p.religion);onReligion();
+    sv('religion-2',p.religion2 || p.religionSecondaire || '');onReligion2();
     sv('moralite',p.moralite);onMoralite();
-    setTimeout(()=>{sv('ecole',p.ecole);onEcole();},50);
+    fallbackEcole=p.ecole || '';
+    sv('ecole',p.ecole);sv('ecole-2',p.ecole2 || p.ecoleSecondaire || '');onEcole();
     sv('maison',p.maison);sv('noblesse',p.noblesse);
     sv('pts-armure',p.ptsArmure);sv('type-armure',p.typeArmure);
+    sv('chances-actuelles',p.chancesActuelles ?? getRaceChanceMax());
+    updateChanceLimits(false);
+    chanceCountBaseline=parseInt(v('chances-actuelles'))||0;
     sv('xp-total',p.evenementsParticipes ?? normaliserEvenementsParticipes(p.xpTotal,d.v));sv('ressources',p.ressources);
     eventCountBaseline=parseInt(v('xp-total'))||0;
     sv('titres',p.titres);sv('notes',p.notes);sv('bg',p.bg);
@@ -125,7 +135,7 @@ function charger(d){
   g('comp-tbody').innerHTML='';compRows=0;
   (d.competences||[]).forEach(c=>addComp(c.nom,c.xp,c.freq,c.count||'1'));
   g('sorts-tbody').innerHTML='';sortRows=0;
-  (d.sorts||[]).forEach(s=>addSort(s.lvl,s.nom,s.xp));
+  (d.sorts||[]).forEach(s=>addSort(s.lvl,s.nom,s.xp,s.ecole || fallbackEcole));
   g('ev-tbody').innerHTML='';evRows=0;
   (d.evenements||[]).forEach(e=>addEv(e.ev,e.saison));
   calcEvXP();

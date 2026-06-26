@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "npm --prefix backend run dev",
     "backend": "npm --prefix backend run dev",
-    "start": "npm --prefix backend start"
+    "start": "npm --prefix backend start",
+    "verify": "node scripts/verify-rules.mjs",
+    "test": "npm run verify"
   }
 }

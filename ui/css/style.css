@@ -14,6 +14,7 @@ body{background:#1a120a;background-image:repeating-linear-gradient(45deg,rgba(25
 .row{display:flex;gap:.9rem;flex-wrap:wrap;margin-bottom:.8rem}
 .col{flex:1;min-width:150px}.col-2{flex:2;min-width:200px}.col-3{flex:3;min-width:240px}.col-full{flex:1 1 100%}
 label{display:block;font-size:.75rem;font-weight:600;color:var(--ink-lt);letter-spacing:.06em;margin-bottom:.28rem;font-family:'Cinzel',serif}
+label.required-label::after{content:' *';color:var(--blood);font-weight:700}
 input[type=text],input[type=email],input[type=number],input[type=date],select,textarea{width:100%;background:rgba(255,255,255,.5);border:1px solid rgba(92,74,42,.35);border-bottom:2px solid var(--gold);border-radius:2px;padding:.4rem .55rem;font-family:'Crimson Text',Georgia,serif;font-size:1rem;color:var(--ink);outline:none;transition:border-color .18s,background .18s}
 input:focus,select:focus,textarea:focus{background:rgba(255,255,255,.82);border-color:var(--gold)}
 select{cursor:pointer}textarea{resize:vertical;min-height:72px}
@@ -30,6 +31,8 @@ select{cursor:pointer}textarea{resize:vertical;min-height:72px}
 .field-hint.warning{color:var(--blood)}
 .invalid-choice{border-color:rgba(139,26,26,.85)!important;background:rgba(139,26,26,.13)!important;box-shadow:0 0 0 3px rgba(139,26,26,.13),0 0 16px rgba(139,26,26,.2)!important}
 .invalid-choice label{color:var(--blood)!important}
+.missing-required{animation:missingPulse .75s ease both}
+@keyframes missingPulse{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-3px)}40%,80%{transform:translateX(3px)}}
 .invalid-field{border-color:var(--blood)!important;border-bottom-color:var(--blood)!important;background:rgba(255,235,235,.95)!important;color:var(--blood)!important}
 .computed{background:rgba(192,144,32,.1)!important;border-color:transparent!important;border-bottom-color:var(--gold)!important;font-weight:600;color:var(--blood)}
 .stat-boxes{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}

@@ -2,6 +2,18 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
+import {
+  canonicalTextAliases,
+  codexCumulableCompetences,
+  defaultRaceChances,
+  getClientCodexRules,
+  mixedCareerSources,
+  raceChanceOverrides,
+  raceStatOverrides,
+  raceVariantDefinitions,
+  religionAliases,
+  valueAliases
+} from "./codex-rules.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,35 +45,48 @@ function slugify(value) {
     .replace(/^-+|-+$/g, "");
 }
 
-const valueAliases = {
-  combatant: "combattant",
-  "etre-sylvestre-terre": "etre-sylvestre",
-  "etre-sylvestre-eau": "etre-sylvestre",
-  "etre-sylvestre-feu": "etre-sylvestre",
-  "etre-sylvestre-air": "etre-sylvestre",
-  "presqu-humain": "presque-humain",
-  "saurien-phrynos": "saurien",
-  "saurien-slann": "saurien",
-  "saurien-coatl": "saurien",
-  "saurien-troglodon": "saurien",
-  "maitre-des-runes": "maitre-runes",
-  "seigneur-de-guerre": "seigneur-guerre"
-};
+function canonicalText(value) {
+  const text = String(value || "")
+    .trim()
+    .replace(/\bCombatant\b/g, "Combattant")
+    .replace(/\bcombatant\b/g, "combattant")
+    .replace(/Ilithyd/g, "Illithyd")
+    .replace(/ilithyd/g, "illithyd")
+    .replace(/concotion/g, "concoction")
+    .replace(/Concotion/g, "Concoction")
+    .replace(/Faiblaisse/g, "Faiblesse")
+    .replace(/faiblaisse/g, "faiblesse");
+  return canonicalTextAliases[slugify(text)] || text;
+}
 
-const religionAliases = {
-  "essence-infernale": "Essence infernale",
-  "esprits-de-la-nature": "Esprits de la Nature",
-  "esprits-des-morts": "Esprits des Morts"
-};
+function canonicalSortName(ecole, niveau, nom) {
+  const schoolKey = slugify(ecole);
+  const normalized = normalizedCompetenceName(nom);
+  const level = Number(niveau);
+
+  if (schoolKey === "druidisme" && level === 4 && normalized === "faiblesse au poison") {
+    return "Faiblesse aux poisons";
+  }
+
+  if (schoolKey === "druidisme" && level === 5 && normalized === "cercle de guerison") {
+    return "Cercle de gu\u00e9rison druidique";
+  }
+
+  if (schoolKey === "magie-elementaire" && level === 5 && normalized === "boule elementaire") {
+    return "Boule \u00e9l\u00e9mentaire mineure";
+  }
+
+  return nom;
+}
 
 function optionValue(label) {
-  const slug = slugify(label);
+  const slug = slugify(canonicalText(label));
   return valueAliases[slug] || slug;
 }
 
 function religionValue(label) {
-  const slug = slugify(label);
-  return religionAliases[slug] || label;
+  const slug = slugify(canonicalText(label));
+  return religionAliases[slug] || canonicalText(label);
 }
 
 function colToNumber(colRef) {
@@ -105,6 +130,34 @@ function addUniqueMappedValue(map, key, value) {
 
 function cleanListValue(value) {
   return sheetValue(value).replace(/\s*\/\s*$/, "").trim();
+}
+
+function canonicalSheetValue(value) {
+  return canonicalText(sheetValue(value));
+}
+
+function raceLabel(label) {
+  const value = optionValue(label);
+  if (value === "etre-sylvestre") return "Être Sylvestre";
+  if (value === "saurien") return "Saurien";
+  return canonicalText(label);
+}
+
+function getBonusTarget(value) {
+  const match = canonicalText(value).match(/\(Bonus\s+([^)]+)\)?/i);
+  return match ? canonicalText(match[1]) : "";
+}
+
+function cleanCompetenceName(value) {
+  return canonicalText(value).replace(/\s*\(Bonus\s+[^)]*\)?\s*$/i, "").trim();
+}
+
+function normalizedCompetenceName(value) {
+  return slugify(cleanCompetenceName(value)).replace(/-/g, " ");
+}
+
+function getCodexCumulableMax(value) {
+  return codexCumulableCompetences.has(normalizedCompetenceName(value)) ? 5 : 1;
 }
 
 function isNameValue(value) {
@@ -342,26 +395,32 @@ export async function getDatabaseOptions() {
   const competences = [];
 
   for (let row = 3; row <= dataSheet.rowCount; row++) {
-    const race = dataSheet.cell(row, 3);
-    const carriere = dataSheet.cell(row, 8);
-    const religion = dataSheet.cell(row, 12);
-    const moralite = dataSheet.cell(row, 14);
+    const race = canonicalSheetValue(dataSheet.cell(row, 3));
+    const carriere = canonicalSheetValue(dataSheet.cell(row, 8));
+    const religion = canonicalSheetValue(dataSheet.cell(row, 12));
+    const moralite = canonicalSheetValue(dataSheet.cell(row, 14));
 
     if (race) {
+      const value = optionValue(race);
+      const statOverride = raceStatOverrides[value] || {};
       races.push({
-        value: optionValue(race),
-        label: race,
+        value,
+        label: raceLabel(race),
         xp: sheetNumber(dataSheet.cell(row, 4)),
-        pvJour: sheetNumber(dataSheet.cell(row, 5)),
-        pvNuit: sheetNumber(dataSheet.cell(row, 6))
+        pvJour: statOverride.pvJour ?? sheetNumber(dataSheet.cell(row, 5)),
+        pvNuit: statOverride.pvNuit ?? sheetNumber(dataSheet.cell(row, 6)),
+        chances: raceChanceOverrides[value] || defaultRaceChances,
+        variants: raceVariantDefinitions[value] || []
       });
     }
     if (carriere) {
+      const value = optionValue(carriere);
       careerIndex++;
       carrieres.push({
-        value: optionValue(carriere),
-        label: carriere,
+        value,
+        label: canonicalText(carriere),
         mixte: careerIndex > 7,
+        sources: mixedCareerSources[value] || [],
         armurePermise: sheetNumber(dataSheet.cell(row, 9)),
         typeArmure: sheetValue(dataSheet.cell(row, 10)),
         ptsMagie: sheetNumber(dataSheet.cell(row, 17)),
@@ -374,10 +433,10 @@ export async function getDatabaseOptions() {
   }
 
   for (let row = 3; row <= magicSheet.rowCount; row++) {
-    const ecole = sheetValue(magicSheet.cell(row, 1));
-    const nom = sheetValue(magicSheet.cell(row, 2));
+    const ecole = canonicalSheetValue(magicSheet.cell(row, 1));
     const xp = sheetNumber(magicSheet.cell(row, 3));
     const niveau = sheetNumber(magicSheet.cell(row, 4));
+    const nom = canonicalSortName(ecole, niveau, canonicalSheetValue(magicSheet.cell(row, 2)));
 
     if (ecole) ecoles.push({ value: ecole, label: ecole });
     if (ecole && nom && niveau) {
@@ -392,10 +451,10 @@ export async function getDatabaseOptions() {
 
   if (schoolRestrictionSheet) {
     for (let row = 2; row <= schoolRestrictionSheet.rowCount; row++) {
-      const carriere = sheetValue(schoolRestrictionSheet.cell(row, 5));
-      const ecoleCarriere = sheetValue(schoolRestrictionSheet.cell(row, 6));
-      const divinite = sheetValue(schoolRestrictionSheet.cell(row, 8));
-      const ecoleDivinite = sheetValue(schoolRestrictionSheet.cell(row, 9));
+      const carriere = canonicalSheetValue(schoolRestrictionSheet.cell(row, 5));
+      const ecoleCarriere = canonicalSheetValue(schoolRestrictionSheet.cell(row, 6));
+      const divinite = canonicalSheetValue(schoolRestrictionSheet.cell(row, 8));
+      const ecoleDivinite = canonicalSheetValue(schoolRestrictionSheet.cell(row, 9));
 
       addUniqueMappedValue(ecolesParCarriere, optionValue(carriere), ecoleCarriere);
       addUniqueMappedValue(ecolesParDivinite, religionValue(divinite), ecoleDivinite);
@@ -404,100 +463,179 @@ export async function getDatabaseOptions() {
 
   if (careerRestrictionSheet) {
     for (let row = 3; row <= careerRestrictionSheet.rowCount; row++) {
-      const race = sheetValue(careerRestrictionSheet.cell(row, 4));
-      const carriere = sheetValue(careerRestrictionSheet.cell(row, 5));
+      const race = canonicalSheetValue(careerRestrictionSheet.cell(row, 4));
+      const carriere = canonicalSheetValue(careerRestrictionSheet.cell(row, 5));
       addMappedListValue(carrieresPermisesParRace, optionValue(race), optionValue(carriere));
     }
   }
 
   if (moralityRestrictionSheet) {
     for (let row = 2; row <= moralityRestrictionSheet.rowCount; row++) {
-      const race = sheetValue(moralityRestrictionSheet.cell(row, 4));
-      const moralite = sheetValue(moralityRestrictionSheet.cell(row, 5));
+      const race = canonicalSheetValue(moralityRestrictionSheet.cell(row, 4));
+      const moralite = canonicalSheetValue(moralityRestrictionSheet.cell(row, 5));
       addMappedListValue(moralitesPermisesParRace, optionValue(race), optionValue(moralite));
     }
   }
 
   if (divinityRestrictionSheet) {
     for (let row = 2; row <= divinityRestrictionSheet.rowCount; row++) {
-      const race = sheetValue(divinityRestrictionSheet.cell(row, 7));
-      const divinite = sheetValue(divinityRestrictionSheet.cell(row, 8));
+      const race = canonicalSheetValue(divinityRestrictionSheet.cell(row, 7));
+      const divinite = canonicalSheetValue(divinityRestrictionSheet.cell(row, 8));
       addMappedListValue(divinitesPermisesParRace, optionValue(race), religionValue(divinite));
     }
   }
 
   if (weaknessSheet) {
     for (let row = 3; row <= weaknessSheet.rowCount; row++) {
-      const race = sheetValue(weaknessSheet.cell(row, 2));
+      const race = canonicalSheetValue(weaknessSheet.cell(row, 2));
       [3, 4, 5].forEach((col) => {
-        addMappedListValue(faiblessesParRace, optionValue(race), cleanListValue(weaknessSheet.cell(row, col)));
+        addMappedListValue(faiblessesParRace, optionValue(race), canonicalText(cleanListValue(weaknessSheet.cell(row, col))));
       });
 
-      const carriere = sheetValue(weaknessSheet.cell(row, 8));
+      const carriere = canonicalSheetValue(weaknessSheet.cell(row, 8));
       const moralite = optionValue(weaknessSheet.cell(row, 9));
       const key = `${optionValue(carriere)}|${moralite}`;
       [11, 12].forEach((col) => {
-        addMappedListValue(faiblessesParCarriereMoralite, key, cleanListValue(weaknessSheet.cell(row, col)));
+        addMappedListValue(faiblessesParCarriereMoralite, key, canonicalText(cleanListValue(weaknessSheet.cell(row, col))));
       });
     }
   }
 
   if (immunitySheet) {
     for (let row = 3; row <= immunitySheet.rowCount; row++) {
-      const race = sheetValue(immunitySheet.cell(row, 2));
+      const race = canonicalSheetValue(immunitySheet.cell(row, 2));
       [3, 4, 5, 6].forEach((col) => {
-        addMappedListValue(immunitesParRace, optionValue(race), cleanListValue(immunitySheet.cell(row, col)));
+        addMappedListValue(immunitesParRace, optionValue(race), canonicalText(cleanListValue(immunitySheet.cell(row, col))));
       });
 
-      const carriere = sheetValue(immunitySheet.cell(row, 9));
-      addMappedListValue(immunitesParCarriere, optionValue(carriere), cleanListValue(immunitySheet.cell(row, 10)));
+      const carriere = canonicalSheetValue(immunitySheet.cell(row, 9));
+      addMappedListValue(immunitesParCarriere, optionValue(carriere), canonicalText(cleanListValue(immunitySheet.cell(row, 10))));
 
-      const competence = sheetValue(immunitySheet.cell(row, 12));
-      addMappedListValue(immunitesParCompetence, competence, cleanListValue(immunitySheet.cell(row, 13)));
+      const competence = cleanCompetenceName(immunitySheet.cell(row, 12));
+      addMappedListValue(immunitesParCompetence, competence, canonicalText(cleanListValue(immunitySheet.cell(row, 13))));
     }
   }
+
+  const raceValueSet = new Set(uniqueOptions(races).map((option) => option.value));
+  const carriereValueSet = new Set(uniqueOptions(carrieres).map((option) => option.value));
 
   if (competenceSheet) {
     const baseXpByName = new Map();
 
     for (let row = 3; row <= competenceSheet.rowCount; row++) {
-      const nom = sheetValue(competenceSheet.cell(row, 8));
+      const rawNom = canonicalSheetValue(competenceSheet.cell(row, 8));
+      const nom = cleanCompetenceName(rawNom);
       const xp = sheetNumber(competenceSheet.cell(row, 9));
-      const carriere = sheetValue(competenceSheet.cell(row, 10));
+      const isBonus = Boolean(getBonusTarget(rawNom));
+      const baseKey = normalizedCompetenceName(nom);
+
+      if (!isNameValue(nom) || isBonus || xp <= 0 || !baseKey) continue;
+      if (!baseXpByName.has(baseKey) || xp < baseXpByName.get(baseKey)) baseXpByName.set(baseKey, xp);
+    }
+
+    for (let row = 3; row <= competenceSheet.rowCount; row++) {
+      const rawNom = canonicalSheetValue(competenceSheet.cell(row, 8));
+      const nom = cleanCompetenceName(rawNom);
+      const xp = sheetNumber(competenceSheet.cell(row, 9));
+      const sourceLabel = canonicalSheetValue(competenceSheet.cell(row, 10));
       const cumulableMax = sheetNumber(competenceSheet.cell(row, 11)) || 1;
+      const bonusTarget = getBonusTarget(rawNom);
+      const sourceValue = optionValue(sourceLabel);
+      const bonusTargetValue = optionValue(bonusTarget);
+      const targetLabel = bonusTarget || sourceLabel;
+      const targetValue = bonusTarget ? bonusTargetValue : sourceValue;
+      const isBonus = Boolean(bonusTarget);
+      const isRaceSource = raceValueSet.has(targetValue);
+      const isCareerSource = carriereValueSet.has(targetValue);
+      const gratuit = isBonus && xp === 0;
+      const baseXp = baseXpByName.get(normalizedCompetenceName(nom)) ?? xp;
 
       if (!isNameValue(nom)) continue;
 
       const option = {
         nom,
         xp,
-        cat: carriere ? `Carrière - ${carriere}` : "Générale",
-        carriere: carriere ? optionValue(carriere) : "",
-        cumulableMax
+        baseXp,
+        cat: "Générale",
+        cumulableMax: getCodexCumulableMax(nom) || cumulableMax,
+        gratuit
       };
 
+      if (isRaceSource) {
+        option.cat = "Raciale";
+        option.race = targetValue;
+        option.note = isBonus && !gratuit ? "bonus racial" : "";
+      } else if (isCareerSource) {
+        option.cat = isBonus ? `Spécial - ${targetLabel}` : `Carrière - ${sourceLabel}`;
+        option.carriere = targetValue;
+        option.note = isBonus && !gratuit ? "bonus de carrière" : "";
+      }
+
       competences.push(option);
-      if (!baseXpByName.has(nom) || xp < baseXpByName.get(nom)) baseXpByName.set(nom, xp);
     }
 
     for (let row = 3; row <= competenceSheet.rowCount; row++) {
-      const race = sheetValue(competenceSheet.cell(row, 17));
-      const nom = sheetValue(competenceSheet.cell(row, 18));
+      const race = canonicalSheetValue(competenceSheet.cell(row, 17));
+      const nom = cleanCompetenceName(competenceSheet.cell(row, 18));
       const xpDelta = sheetNumber(competenceSheet.cell(row, 21));
-      const baseXp = baseXpByName.get(nom);
+      const baseXp = baseXpByName.get(normalizedCompetenceName(nom));
 
       if (!isNameValue(race) || !isNameValue(nom) || baseXp === undefined) continue;
 
+      const xp = Math.max(0, baseXp + xpDelta);
       competences.push({
         nom,
-        xp: Math.max(0, baseXp + xpDelta),
+        xp,
+        baseXp,
         cat: "Raciale",
         race: optionValue(race),
-        note: xpDelta < 0 ? "rabais racial" : "",
-        cumulableMax: 1
+        gratuit: xp === 0,
+        note: xp === 0 ? "" : (xpDelta < 0 ? "rabais racial" : ""),
+        cumulableMax: getCodexCumulableMax(nom)
       });
     }
+
   }
+
+  const uniqueCarrieres = uniqueOptions(carrieres);
+  const uniqueCareerValues = uniqueCarrieres.map((option) => option.value);
+  const carriereDonneAccesSorts = (carriere) => Number(carriere.ptsMagie) > 0 || Number(carriere.maxMagique) > 0;
+  const carriereEstNonMagique = (carriere) => !carriere.semiMagique && !carriereDonneAccesSorts(carriere);
+
+  carrieresPermisesParRace["elfe-gris"] = uniqueCarrieres
+    .filter((carriere) => carriereEstNonMagique(carriere) || ["mage", "barde", "magelame", "maitre-runes", "scribe"].includes(carriere.value))
+    .map((carriere) => carriere.value);
+  carrieresPermisesParRace.illithyd = uniqueCarrieres
+    .filter((carriere) => carriereDonneAccesSorts(carriere))
+    .map((carriere) => carriere.value);
+  carrieresPermisesParRace.gitan = uniqueCareerValues.filter((value) => !["barbare", "berserker"].includes(value));
+  carrieresPermisesParRace.morgull = uniqueCareerValues.filter((value) => value !== "totem");
+  carrieresPermisesParRace.norde = [
+    "barbare",
+    "berserker",
+    "traqueur",
+    "maraudeur",
+    "maitre-runes",
+    "seigneur-guerre",
+    "chaman",
+    "druide",
+    "animiste",
+    "ermite",
+    "gardien-mystique",
+    "rodeur",
+    "totem"
+  ];
+  if (carrieresPermisesParRace.corvus && !carrieresPermisesParRace.corvus.includes("charlatan")) {
+    carrieresPermisesParRace.corvus.push("charlatan");
+  }
+
+  const variableElementalEffects = new Set(["Feu", "Eau", "Acide", "Électricité", "Electricité"]);
+  faiblessesParRace["etre-sylvestre"] = [];
+  immunitesParRace["etre-sylvestre"] = (immunitesParRace["etre-sylvestre"] || [])
+    .filter((effect) => !variableElementalEffects.has(effect));
+  faiblessesParRace.saurien = [];
+  immunitesParRace.saurien = (immunitesParRace.saurien || [])
+    .filter((effect) => !variableElementalEffects.has(effect));
 
   return {
     races: uniqueOptions(races),
@@ -508,6 +646,8 @@ export async function getDatabaseOptions() {
     ecolesParCarriere,
     ecolesParDivinite,
     sorts,
+    rules: getClientCodexRules(),
+    sourcesParCarriereMixte: mixedCareerSources,
     carrieresPermisesParRace,
     moralitesPermisesParRace,
     divinitesPermisesParRace,
@@ -520,7 +660,8 @@ export async function getDatabaseOptions() {
       option.cat,
       option.nom,
       option.race || "",
-      option.carriere || ""
+      option.carriere || "",
+      option.gratuit ? "gratuit" : ""
     ].join("|"))
   };
 }
@@ -542,8 +683,8 @@ export async function getCompetenceMeta() {
   }
 
   for (let row = 3; row <= sheet.rowCount; row++) {
-    const category = sheet.cell(row, 1);
-    const name = sheet.cell(row, 2);
+    const category = canonicalSheetValue(sheet.cell(row, 1));
+    const name = cleanCompetenceName(sheet.cell(row, 2));
     const frequency = sheet.cell(row, 4);
 
     if (!name) continue;
@@ -558,13 +699,24 @@ export async function getCompetenceMeta() {
   }
 
   for (let row = 3; row <= sheet.rowCount; row++) {
-    const name = sheet.cell(row, 8);
-    const maxPurchases = parseInt(sheet.cell(row, 11), 10) || 1;
+    const name = cleanCompetenceName(sheet.cell(row, 8));
+    const maxPurchases = getCodexCumulableMax(name);
 
-    if (!name || maxPurchases <= 1) continue;
+    if (!name) continue;
 
     ensureEntry(name).cumulableMax = maxPurchases;
   }
+
+  meta["Cr\u00e9ation d'anima"] = {
+    categorie: "Animiste",
+    frequence: "1 fois",
+    cumulableMax: getCodexCumulableMax("Cr\u00e9ation d'anima")
+  };
+  meta["Magie puissante"] = {
+    categorie: "Sage",
+    frequence: "1 fois",
+    cumulableMax: getCodexCumulableMax("Magie puissante")
+  };
 
   return meta;
 }

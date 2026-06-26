@@ -1,4 +1,62 @@
 // ===================== VALIDATIONS =====================
+const PLAYER_REQUIRED_FIELDS = [
+  { id: 'j-nom', label: 'Nom du joueur' },
+  { id: 'j-tel', label: 'Téléphone du joueur' },
+  { id: 'j-email', label: 'Courriel du joueur' },
+  { id: 'u1-nom', label: "Contact d'urgence #1" },
+  { id: 'u1-tel', label: "Téléphone du contact d'urgence #1" },
+  { id: 'u2-nom', label: "Contact d'urgence #2" },
+  { id: 'u2-tel', label: "Téléphone du contact d'urgence #2" }
+];
+
+function setFieldInvalid(id, isInvalid) {
+  const field = g(id);
+  const wrap = field?.closest('.col, .col-2, .col-3, .col-full');
+  field?.classList.toggle('invalid-field', isInvalid);
+  field?.setAttribute('aria-invalid', isInvalid ? 'true' : 'false');
+  wrap?.classList.toggle('invalid-choice', isInvalid);
+  wrap?.classList.remove('missing-required');
+  if (isInvalid && wrap) {
+    void wrap.offsetWidth;
+    wrap.classList.add('missing-required');
+  }
+}
+
+function validerInformationsJoueurObligatoires() {
+  const alertEl = document.getElementById('alert-joueur');
+  const missing = [];
+
+  PLAYER_REQUIRED_FIELDS.forEach(({ id, label }) => {
+    const field = g(id);
+    const isMissing = !String(field?.value || '').trim();
+    setFieldInvalid(id, isMissing);
+    if (isMissing) missing.push(label);
+  });
+
+  const emailField = g('j-email');
+  const emailInvalid = Boolean(emailField?.value?.trim()) && !emailField.checkValidity();
+  if (emailInvalid) {
+    setFieldInvalid('j-email', true);
+  }
+
+  if (missing.length === 0 && !emailInvalid) {
+    alertEl?.classList.remove('show');
+    if (alertEl) alertEl.innerHTML = '';
+    return true;
+  }
+
+  const details = [];
+  if (missing.length > 0) details.push(`Champs obligatoires manquants : ${missing.join(', ')}.`);
+  if (emailInvalid) details.push('Le courriel du joueur doit être valide.');
+
+  if (alertEl) {
+    alertEl.innerHTML = `⛔ <b>Informations du joueur incomplètes :</b> ${details.join(' ')}`;
+    alertEl.classList.add('show');
+  }
+
+  return false;
+}
+
 function raceCarriereSontCompatibles(race, carriere) {
   if (!race || !carriere) return true;
 
@@ -27,6 +85,7 @@ function refreshRaceCareerOptions(changedField = null) {
   renderOptions('race', availableRaces, '-- Choisir une race --');
   renderOptions('carriere', availableCarrieres, '-- Choisir une carrière --');
   renderOptions('religion', availableReligions, '-- Choisir --');
+  renderOptions('religion-2', availableReligions, '-- Aucune / choisir --');
 
   const raceWasRemoved = Boolean(currentRace && !availableRaces.some(option => option.value === currentRace));
   const carriereWasRemoved = Boolean(currentCarriere && !availableCarrieres.some(option => option.value === currentCarriere));
@@ -93,6 +152,7 @@ function setRaceCarriereInvalid(isInvalid) {
 function validerMoraliteDivinite() {
   const moralite = v('moralite');
   const religion = v('religion');
+  const religion2 = v('religion-2');
   const race = v('race');
   const alertDiv = document.getElementById('alert-moralite-divinite');
   const alertRace = document.getElementById('alert-moralite-race');
@@ -113,10 +173,11 @@ function validerMoraliteDivinite() {
     alertRace.classList.remove('show');
   }
 
-  if (race && religion) {
+  if (race && (religion || religion2)) {
     const divinitesPermises = getAllowedDivinitiesForRace(race);
-    if (divinitesPermises.length > 0 && !divinitesPermises.includes(religion)) {
-      alertDiv.innerHTML = `⛔ <b>Divinité incompatible :</b> La base ne permet pas <b>${religion}</b> pour cette race.`;
+    const invalidReligion = [religion, religion2].filter(Boolean).find((divinite) => divinitesPermises.length > 0 && !divinitesPermises.includes(divinite));
+    if (invalidReligion) {
+      alertDiv.innerHTML = `⛔ <b>Divinité incompatible :</b> La base ne permet pas <b>${invalidReligion}</b> pour cette race.`;
       alertDiv.classList.add('show');
       ok = false;
     } else {
@@ -131,6 +192,7 @@ function validerMoraliteDivinite() {
 
 function formulaireEstValidePourExport() {
   const validations = [
+    validerInformationsJoueurObligatoires(),
     validerCombinaisonRaceCarriere(),
     validerMoraliteDivinite()
   ];
@@ -139,7 +201,7 @@ function formulaireEstValidePourExport() {
   if (!ok) {
     const firstAlert = document.querySelector('.alert.show');
     firstAlert?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    alert("Impossible de sauvegarder ou d'envoyer : corrige d'abord les choix interdits.");
+    alert("Impossible de sauvegarder ou d'envoyer : corrige d'abord les champs en erreur.");
   }
 
   return ok;

@@ -8,6 +8,7 @@ import {
   getDatabaseOptions,
   getWorkbookOverview
 } from "./services/database.service.js";
+import { parseCharacterFile } from "./services/document-import.service.js";
 import { generateCharacterWorkbook } from "./services/excel.service.js";
 import { parseCharacterWorkbook } from "./services/excel.service.js";
 import { sendCharacterWorkbookEmail } from "./services/email.service.js";
@@ -39,7 +40,7 @@ function corsHeaders(extra = {}) {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type,X-Filename",
     ...extra
   };
 }
@@ -128,7 +129,7 @@ function readBinaryBody(req) {
     req.on("data", chunk => {
       chunks.push(chunk);
       length += chunk.length;
-      if (length > 5_000_000) {
+      if (length > 15_000_000) {
         req.destroy();
         reject(new Error("Fichier trop volumineux."));
       }
@@ -152,13 +153,17 @@ function buildEmailPreview(data) {
     `Joueur : ${joueur.nom || "Non renseigne"}`,
     `Personnage : ${personnage.nom || "Non renseigne"}`,
     `Race : ${personnage.race || "Non renseignee"}`,
+    `Choix racial : ${personnage.raceVariant || "Aucun"}`,
     `Carriere : ${personnage.carriere || "Non renseignee"}`,
+    `Chances : ${audit.chanceCountCurrent ?? personnage.chancesActuelles ?? "0"} / ${audit.chanceMax ?? personnage.chancesMax ?? "?"}`,
     `Evenements participes : ${audit.eventCountCurrent ?? personnage.evenementsParticipes ?? "0"}`,
     `XP d'evenements : ${(Number(audit.eventCountCurrent ?? personnage.evenementsParticipes) || 0) * 3}`
   ];
 
-  if (audit.eventAbuseWarning) {
-    lines.push("", "AVERTISSEMENT ANTI-ABUS", audit.eventAbuseWarning);
+  if (audit.eventAbuseWarning || audit.chanceAbuseWarning) {
+    lines.push("", "AVERTISSEMENT ANTI-ABUS");
+    if (audit.eventAbuseWarning) lines.push(audit.eventAbuseWarning);
+    if (audit.chanceAbuseWarning) lines.push(audit.chanceAbuseWarning);
   }
 
   return lines.join("\n");
@@ -236,6 +241,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/fiche/import-xlsx") {
       const workbook = await readBinaryBody(req);
       sendJson(res, 200, await parseCharacterWorkbook(workbook));
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/fiche/import-file") {
+      const file = await readBinaryBody(req);
+      const filename = decodeURIComponent(String(req.headers["x-filename"] || ""));
+      const contentType = String(req.headers["content-type"] || "");
+      sendJson(res, 200, await parseCharacterFile(file, { filename, contentType }));
       return;
     }
 
