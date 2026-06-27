@@ -1,4 +1,27 @@
 ﻿// ===================== XP + STATS =====================
+const XP_PAR_EVENEMENT = 3;
+const MAX_XP_EVENEMENTS = 150;
+
+function getEventCount(){
+  return parseInt(v('xp-total'),10)||0;
+}
+
+function getRaceBaseXp(){
+  return parseInt(v('xp-depart'),10)||0;
+}
+
+function getEventXpRaw(){
+  return getEventCount()*XP_PAR_EVENEMENT;
+}
+
+function getEventXpUsed(){
+  return Math.min(getEventXpRaw(),MAX_XP_EVENEMENTS);
+}
+
+function getTotalXpLimit(){
+  return getRaceBaseXp()+getEventXpUsed();
+}
+
 function calcXP(){
   let dep=0;
   document.querySelectorAll('.comp-xp').forEach(el=>dep+=parseInt(el.value)||0);
@@ -6,27 +29,34 @@ function calcXP(){
     const hasSort=row.querySelector('.sort-lvl-sel')?.value||row.querySelector('.sort-nom-sel')?.value;
     if(hasSort)dep+=parseInt(row.querySelector('.sort-xp')?.value)||0;
   });
-  const eventCount=parseInt(v('xp-total'))||0;
-  const eventXP=eventCount*3;
-  const total=eventXP+(parseInt(v('xp-depart'))||0);
+  const eventCount=getEventCount();
+  const rawEventXP=getEventXpRaw();
+  const total=getTotalXpLimit();
   const dispo=total-dep;
   sv('xp-dep',dep);sv('xp-dispo',dispo);
   const pct=total>0?Math.min(100,(dep/total)*100):0;
   g('xp-bar').style.width=pct+'%';
   g('xp-lbl-d').textContent=dep+' dépensés';
-  g('xp-lbl-t').textContent=total+' total ('+eventCount+' événements × 3 XP)';
+  const capLabel=rawEventXP>MAX_XP_EVENEMENTS?` plafonnés à ${MAX_XP_EVENEMENTS} XP`:'';
+  g('xp-lbl-t').textContent=`${total} total (${eventCount} événements × ${XP_PAR_EVENEMENT} XP${capLabel})`;
   updateEventAbuseWarning();
 }
 
 function getEventAbuseWarning(){
-  const current=parseInt(v('xp-total'))||0;
+  const current=getEventCount();
   const increase=current-eventCountBaseline;
+  const rawEventXP=getEventXpRaw();
+  const warnings=[];
 
-  if(increase>1){
-    return `Attention : le nombre d'événements participés a augmenté de ${increase} depuis la fiche chargée (${eventCountBaseline} → ${current}). À vérifier avant validation.`;
+  if(rawEventXP>MAX_XP_EVENEMENTS){
+    warnings.push(`Les événements donnent ${rawEventXP} XP, mais le maximum utilisable est ${MAX_XP_EVENEMENTS} XP. La limite totale est donc XP de race (${getRaceBaseXp()}) + ${MAX_XP_EVENEMENTS} XP.`);
   }
 
-  return '';
+  if(increase>1){
+    warnings.push(`Le nombre d'événements participés a augmenté de ${increase} depuis la fiche chargée (${eventCountBaseline} → ${current}). À vérifier avant validation.`);
+  }
+
+  return warnings.join(' ');
 }
 
 function getChanceAbuseWarning(){

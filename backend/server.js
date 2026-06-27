@@ -143,6 +143,8 @@ function buildEmailPreview(data) {
   const joueur = data.joueur || {};
   const personnage = data.personnage || {};
   const audit = data.audit || {};
+  const eventCount = Number(audit.eventCountCurrent ?? personnage.evenementsParticipes) || 0;
+  const eventXp = Math.min(eventCount * 3, 150);
   const animationEmail = process.env.ANIMATION_EMAIL || "vidarmazrim@gmail.com";
   const lines = [
     "Nouvelle fiche Arkadia",
@@ -156,8 +158,8 @@ function buildEmailPreview(data) {
     `Choix racial : ${personnage.raceVariant || "Aucun"}`,
     `Carriere : ${personnage.carriere || "Non renseignee"}`,
     `Chances : ${audit.chanceCountCurrent ?? personnage.chancesActuelles ?? "0"} / ${audit.chanceMax ?? personnage.chancesMax ?? "?"}`,
-    `Evenements participes : ${audit.eventCountCurrent ?? personnage.evenementsParticipes ?? "0"}`,
-    `XP d'evenements : ${(Number(audit.eventCountCurrent ?? personnage.evenementsParticipes) || 0) * 3}`
+    `Evenements participes : ${eventCount}`,
+    `XP d'evenements : ${eventXp}${eventCount * 3 > 150 ? " (plafond 150 XP)" : ""}`
   ];
 
   if (audit.eventAbuseWarning || audit.chanceAbuseWarning) {

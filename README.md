@@ -26,6 +26,7 @@ Ce script vérifie notamment:
 - l'absence de l'ancienne base statique `ui/js/data.js`;
 - les règles Sage, Animiste et Concoctions exposées au frontend;
 - que `Falsification` reste non cumulable;
+- que les XP d'événements restent plafonnés à 150;
 - que l'export/import Excel restaure les contacts d'urgence.
 
 ## Où modifier les données
@@ -59,6 +60,12 @@ backend/services/codex-rules.js
 - règles Sage/Animiste et types d'écoles arcane/divine.
 
 ## Import et export
+
+Les XP gagnés par événements sont plafonnés à 150 XP. Le total utilisable d'un personnage est donc:
+
+```txt
+XP de race + min(nombre d'événements × 3 XP, 150 XP)
+```
 
 Formats supportés par le bouton `Charger une fiche`:
 

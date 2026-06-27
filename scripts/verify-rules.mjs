@@ -52,6 +52,12 @@ const meta = await getCompetenceMeta();
 assert(fs.existsSync(path.join(root, "database/source/Fiche-de-joueur-V1.3.xlsx")), "Le fichier Excel source V1.3 est manquant.");
 assert(!fs.existsSync(path.join(root, "ui/js/data.js")), "L'ancienne base statique ui/js/data.js existe encore.");
 
+const calculsJs = fs.readFileSync(path.join(root, "ui/caracteristiques/calculs.js"), "utf8");
+const sauvegardeJs = fs.readFileSync(path.join(root, "ui/js/sauvegarde.js"), "utf8");
+assert(calculsJs.includes("const MAX_XP_EVENEMENTS = 150"), "La limite de 150 XP d'evenements doit etre declaree.");
+assert(calculsJs.includes("Math.min(getEventXpRaw(),MAX_XP_EVENEMENTS)"), "Les XP d'evenements doivent etre plafonnes a 150.");
+assert(sauvegardeJs.includes("xpEvenements:getEventXpUsed()"), "L'export doit sauvegarder les XP d'evenements plafonnes.");
+
 assert(options.rules?.magic?.dualSchoolCareers?.sage?.secondReligion === true, "La regle Sage doit permettre une deuxieme divinite.");
 assert(options.rules?.magic?.dualSchoolCareers?.animiste, "La regle Animiste doit etre exposee au frontend.");
 assert(options.rules?.competences?.concoctionRules?.["concoction alchimie"], "Les regles de concoction doivent etre exposees au frontend.");
