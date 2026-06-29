@@ -317,6 +317,8 @@ function parseLegacyArkadiaWorkbook(sheetXml, sharedStrings) {
     audit: { eventCountBaseline: 0, eventCountCurrent: 0, eventAbuseWarning: "" },
     competences: [],
     sorts: [],
+    competencesSpeciales: [],
+    sortsSpeciaux: [],
     evenements: []
   };
 
@@ -433,6 +435,8 @@ function buildSheet(data) {
   const audit = data.audit || {};
   const competences = data.competences || [];
   const sorts = data.sorts || [];
+  const competencesSpeciales = data.competencesSpeciales || data.specialCompetences || [];
+  const sortsSpeciaux = data.sortsSpeciaux || data.specialSorts || [];
   const evenements = data.evenements || [];
   const rows = [];
   let row = 1;
@@ -499,6 +503,24 @@ function buildSheet(data) {
   ]);
   rows.push(...block.rows); row = block.nextRow;
 
+  block = tableRows(row, "Compétences spéciales", ["Nom", "Fréquence", "Fois", "XP / fois", "Note animation"], competencesSpeciales, (item, r) => [
+    textCell(r, 1, item.nom),
+    textCell(r, 2, item.freq),
+    numberCell(r, 3, item.count),
+    numberCell(r, 4, item.xp),
+    textCell(r, 5, item.note)
+  ]);
+  rows.push(...block.rows); row = block.nextRow;
+
+  block = tableRows(row, "Sorts spéciaux", ["École", "Niveau", "Nom", "XP", "Note animation"], sortsSpeciaux, (item, r) => [
+    textCell(r, 1, item.ecole),
+    numberCell(r, 2, item.lvl),
+    textCell(r, 3, item.nom),
+    numberCell(r, 4, item.xp),
+    textCell(r, 5, item.note)
+  ]);
+  rows.push(...block.rows); row = block.nextRow;
+
   block = tableRows(row, "Historique des événements", ["Événement", "Saison", "XP"], evenements, (item, r) => [
     textCell(r, 1, item.ev),
     textCell(r, 2, item.saison),
@@ -546,6 +568,8 @@ export async function parseCharacterWorkbook(buffer) {
     "XP",
     "Compétences",
     "Sorts",
+    "Compétences spéciales",
+    "Sorts spéciaux",
     "Historique des événements"
   ].filter((name) => sections.has(name));
 
@@ -555,7 +579,7 @@ export async function parseCharacterWorkbook(buffer) {
     return next ? sections.get(next) : lastRow + 1;
   }
 
-  const data = { v: "2.5", joueur: {}, personnage: {}, audit: {}, competences: [], sorts: [], evenements: [] };
+  const data = { v: "2.8", joueur: {}, personnage: {}, audit: {}, competences: [], sorts: [], competencesSpeciales: [], sortsSpeciaux: [], evenements: [] };
 
   readLabelBlock(rows, sections.get("Informations du joueur"), sectionEnd("Informations du joueur"), {
     "Nom": "nom",
@@ -623,6 +647,26 @@ export async function parseCharacterWorkbook(buffer) {
       ? { ecole: row.A || "", lvl: row.B || "", nom: row.C || "", xp: row.D || "0" }
       : { lvl: row.A || "", nom: row.B || "", xp: row.C || "0" }
   ));
+
+  if (sections.has("Compétences spéciales")) {
+    data.competencesSpeciales = readTable(rows, sections.get("Compétences spéciales"), sectionEnd("Compétences spéciales"), (row) => ({
+      nom: row.A || "",
+      freq: row.B || "",
+      count: row.C || "1",
+      xp: row.D || "0",
+      note: row.E || ""
+    }));
+  }
+
+  if (sections.has("Sorts spéciaux")) {
+    data.sortsSpeciaux = readTable(rows, sections.get("Sorts spéciaux"), sectionEnd("Sorts spéciaux"), (row) => ({
+      ecole: row.A || "",
+      lvl: row.B || "",
+      nom: row.C || "",
+      xp: row.D || "0",
+      note: row.E || ""
+    }));
+  }
 
   data.evenements = readTable(rows, sections.get("Historique des événements"), sectionEnd("Historique des événements"), (row) => ({
     ev: row.A || "",

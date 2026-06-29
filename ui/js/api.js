@@ -133,14 +133,27 @@ function getDatabaseMoraliteOption(moraliteKey = v("moralite")) {
 
 function getAllowedSchoolsForDivinite(divinite) {
   const databaseSchools = DATABASE_OPTIONS?.ecolesParDivinite?.[divinite];
-  if (Array.isArray(databaseSchools) && databaseSchools.length > 0) return databaseSchools;
+  if (Array.isArray(databaseSchools) && databaseSchools.length > 0) return filterKnownMagicSchools(databaseSchools);
 
   return [];
 }
 
 function getAllowedSchoolsForCarriere(carriereKey = v("carriere")) {
   const databaseSchools = DATABASE_OPTIONS?.ecolesParCarriere?.[carriereKey];
-  return Array.isArray(databaseSchools) ? databaseSchools : [];
+  return Array.isArray(databaseSchools) ? filterKnownMagicSchools(databaseSchools) : [];
+}
+
+function getKnownMagicSchoolNames() {
+  return (DATABASE_OPTIONS?.ecoles || []).map((option) => option.value);
+}
+
+function schoolExistsInDatabase(ecole) {
+  const normalized = normalizeCompetenceKey(ecole);
+  return getKnownMagicSchoolNames().some((school) => normalizeCompetenceKey(school) === normalized);
+}
+
+function filterKnownMagicSchools(schools) {
+  return uniqueTexts((schools || []).filter((school) => schoolExistsInDatabase(school)));
 }
 
 function getCareerSchoolRule(carriereKey = v("carriere")) {
@@ -219,6 +232,50 @@ function getDualSchoolOptions(slot, carriereKey = v("carriere")) {
 
 function getSelectedSpellSchools() {
   return uniqueTexts([v("ecole"), v("ecole-2")].filter(Boolean));
+}
+
+function getRequiredSpellSchoolTypes(carriereKey = v("carriere")) {
+  const rule = getCareerSchoolRule(carriereKey);
+  if (!rule) return [];
+  return [rule.primaryType, rule.secondaryType].filter(Boolean);
+}
+
+function spellSchoolTypeLabel(type) {
+  if (type === "arcane") return "arcane";
+  if (type === "divine") return "divine";
+  return "permise";
+}
+
+function selectedSchoolMatchesType(type) {
+  if (!type || type === "any") return true;
+  return getSelectedSpellSchools().some((school) => schoolHasType(school, type));
+}
+
+function spellSchoolsMeetRequirements(carriereKey = v("carriere")) {
+  const carriere = getDatabaseCarriereOption(carriereKey);
+  if (!carriereDonneAccesSorts(carriere)) return true;
+
+  const selected = getSelectedSpellSchools();
+  const rule = getCareerSchoolRule(carriereKey);
+  if (!rule) return selected.length >= 1;
+
+  const requiredTypes = getRequiredSpellSchoolTypes(carriereKey);
+  if (requiredTypes.length > 1 && selected.length < 2) return false;
+  return requiredTypes.every((type) => selectedSchoolMatchesType(type));
+}
+
+function spellSchoolRequirementMessage(carriereKey = v("carriere")) {
+  const rule = getCareerSchoolRule(carriereKey);
+  if (!rule) return "Choisis une école de magie permise.";
+
+  const requiredTypes = getRequiredSpellSchoolTypes(carriereKey).map(spellSchoolTypeLabel);
+  if (carriereKey === "sage") return "Le Sage doit choisir une école divine et une école arcane permises par sa ou ses divinités.";
+  if (carriereKey === "chaman") return "Le Chaman doit choisir une école divine et une école arcane permises par sa divinité.";
+  if (getRequiredSpellSchoolTypes(carriereKey).every((type) => type === "any")) {
+    return "Cette carrière doit choisir deux écoles de magie permises par sa divinité.";
+  }
+  if (requiredTypes.length > 1) return `Cette carrière doit choisir deux écoles de magie ${requiredTypes.join(" et ")}.`;
+  return "Choisis les écoles de magie permises par cette carrière.";
 }
 
 function getSortEntries(ecole, level = null) {

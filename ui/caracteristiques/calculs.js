@@ -29,6 +29,15 @@ function calcXP(){
     const hasSort=row.querySelector('.sort-lvl-sel')?.value||row.querySelector('.sort-nom-sel')?.value;
     if(hasSort)dep+=parseInt(row.querySelector('.sort-xp')?.value)||0;
   });
+  document.querySelectorAll('#special-comp-tbody tr').forEach(row=>{
+    const hasSpecial=row.querySelector('.special-comp-nom')?.value||row.querySelector('.special-comp-note')?.value;
+    const count=Math.max(1,parseInt(row.querySelector('.special-comp-count')?.value,10)||1);
+    if(hasSpecial)dep+=(parseInt(row.querySelector('.special-comp-xp')?.value)||0)*count;
+  });
+  document.querySelectorAll('#special-sort-tbody tr').forEach(row=>{
+    const hasSpecial=row.querySelector('.special-sort-ecole')?.value||row.querySelector('.special-sort-lvl')?.value||row.querySelector('.special-sort-nom')?.value||row.querySelector('.special-sort-note')?.value;
+    if(hasSpecial)dep+=parseInt(row.querySelector('.special-sort-xp')?.value)||0;
+  });
   const eventCount=getEventCount();
   const rawEventXP=getEventXpRaw();
   const total=getTotalXpLimit();
@@ -185,6 +194,7 @@ function calcStats(){
   }
   g('alert-pv').classList.toggle('show',total>10);
   updateChanceAbuseWarning();
+  if(typeof updateScenarioResources==='function')updateScenarioResources();
 }
 
 function removeRow(id){

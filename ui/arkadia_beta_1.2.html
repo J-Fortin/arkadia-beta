@@ -123,6 +123,7 @@
   </div>
   <div id="divinite-info" class="info-box"></div>
   <div id="ecole-info" class="info-box"></div>
+  <div id="alert-ecole-magie" class="alert"></div>
   <div class="row">
     <div class="col">
       <label>Maison Noble / Titre</label>
@@ -202,14 +203,27 @@
 <div class="card">
   <div class="stitle">VI · Ressources & Notes</div>
   <div class="row">
-    <div class="col"><label>Ressources par scénario (trait racial, carrière)</label><input type="text" id="ressources" placeholder="Ex. 5 plantes, 5 herboristerie"></div>
+    <div class="col"><label>Ressources par scénario (trait racial, carrière)</label><textarea id="ressources" rows="3" class="computed" readonly placeholder="Aucune ressource automatique"></textarea></div>
   </div>
   <hr class="div">
-  <div class="stitle" style="margin-top:.8rem">Titres / Races avancées / Capacités spéciales</div>
-  <textarea id="titres" placeholder="Titres, races avancées et capacités spéciales obtenues en jeu..."></textarea>
-  <hr class="div">
-  <div class="stitle" style="margin-top:.8rem">Notes & Background complet</div>
-  <textarea id="notes" rows="5" placeholder="Historique du personnage, points faibles, avantages, notes de jeu de rôle..."></textarea>
+  <div class="stitle" style="margin-top:.8rem">Titres / Races avancées / Capacités spéciales / Notes & Background complet</div>
+  <textarea id="titres" rows="5" placeholder="Titres, races avancées, capacités spéciales, historique complet et notes de jeu de rôle..."></textarea>
+  <div class="stitle" style="margin-top:.8rem">Compétences spéciales de l'animation</div>
+  <table class="comp-table">
+    <thead><tr><th style="width:34%">Compétence</th><th>Fréquence</th><th style="width:62px">Fois</th><th style="width:70px">XP / fois</th><th>Note animation</th><th></th></tr></thead>
+    <tbody id="special-comp-tbody"></tbody>
+  </table>
+  <div style="text-align:right;margin-top:.7rem" class="no-print">
+    <button class="btn-s" onclick="addSpecialComp()" style="padding:.35rem .9rem;font-size:.78rem">+ Ajouter une compétence spéciale</button>
+  </div>
+  <div class="stitle" style="margin-top:.8rem">Sorts spéciaux de l'animation</div>
+  <table class="comp-table">
+    <thead><tr><th style="width:22%">École</th><th style="width:55px">Niveau</th><th>Nom du sort</th><th style="width:55px">XP</th><th>Note animation</th><th></th></tr></thead>
+    <tbody id="special-sort-tbody"></tbody>
+  </table>
+  <div style="text-align:right;margin-top:.7rem" class="no-print">
+    <button class="btn-s" onclick="addSpecialSort()" style="padding:.35rem .9rem;font-size:.78rem">+ Ajouter un sort spécial</button>
+  </div>
 </div>
 
 <!-- HISTORIQUE ÉVÉNEMENTS -->
@@ -238,6 +252,8 @@
 <script src="personnage/personnage.js"></script>
 <script src="competences/competences.js"></script>
 <script src="competences/sorts.js"></script>
+<script src="ressourcesEtNotes/ressources.js"></script>
+<script src="ressourcesEtNotes/specials.js"></script>
 <script src="ressourcesEtNotes/evenements.js"></script>
 <script src="caracteristiques/calculs.js"></script>
 <script src="js/sauvegarde.js"></script>

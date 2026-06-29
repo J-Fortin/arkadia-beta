@@ -185,6 +185,13 @@ function uniqueByKey(items, keyFn) {
   });
 }
 
+function filterMappedSchools(map, allowedSchools) {
+  Object.keys(map).forEach((key) => {
+    map[key] = uniqueByKey(map[key] || [], (school) => school)
+      .filter((school) => allowedSchools.has(school));
+  });
+}
+
 function readZipEntries(buffer) {
   const entries = new Map();
   let eocdOffset = -1;
@@ -598,6 +605,16 @@ export async function getDatabaseOptions() {
   }
 
   const uniqueCarrieres = uniqueOptions(carrieres);
+  const uniqueEcoles = uniqueOptions(ecoles);
+  const realSchoolNames = new Set(uniqueEcoles.map((option) => option.value));
+  const magicRuleSet = getClientCodexRules().magic || {};
+
+  Object.entries(magicRuleSet.careerSchoolOverrides || {}).forEach(([carriere, schools]) => {
+    ecolesParCarriere[carriere] = schools;
+  });
+  filterMappedSchools(ecolesParCarriere, realSchoolNames);
+  filterMappedSchools(ecolesParDivinite, realSchoolNames);
+
   const uniqueCareerValues = uniqueCarrieres.map((option) => option.value);
   const carriereDonneAccesSorts = (carriere) => Number(carriere.ptsMagie) > 0 || Number(carriere.maxMagique) > 0;
   const carriereEstNonMagique = (carriere) => !carriere.semiMagique && !carriereDonneAccesSorts(carriere);
@@ -642,7 +659,7 @@ export async function getDatabaseOptions() {
     carrieres: uniqueOptions(carrieres),
     religions: uniqueOptions(religions),
     moralites: uniqueOptions(moralites),
-    ecoles: uniqueOptions(ecoles),
+    ecoles: uniqueEcoles,
     ecolesParCarriere,
     ecolesParDivinite,
     sorts,

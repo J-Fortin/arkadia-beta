@@ -182,6 +182,46 @@ export const cumulableCompetenceNames = [
 
 export const codexCumulableCompetences = new Set(cumulableCompetenceNames);
 
+export const firstFreeCompetenceRules = {
+  barbare: [
+    { names: ["bravoure"] }
+  ],
+  combattant: [
+    { names: ["resistance physique"] }
+  ],
+  mage: [
+    { startsWith: "lecture et ecriture" }
+  ],
+  marchand: [
+    {
+      names: [
+        "contact marchand mineur",
+        "contact marchand druide",
+        "contact marchand brasseur",
+        "contact marchand forgeron"
+      ]
+    }
+  ],
+  roublard: [
+    { names: ["attaque sournoise"] }
+  ],
+  barde: [
+    { startsWith: "lecture et ecriture" }
+  ],
+  charlatan: [
+    { startsWith: "lecture et ecriture" }
+  ],
+  sage: [
+    { startsWith: "lecture et ecriture" }
+  ],
+  scribe: [
+    { startsWith: "lecture et ecriture" }
+  ],
+  traqueur: [
+    { names: ["lancer meurtrier"] }
+  ]
+};
+
 export const religionAliases = {
   "essence-infernale": "Essence infernale",
   "esprits-de-la-nature": "Esprits de la Nature",
@@ -215,12 +255,19 @@ export const magicRules = {
   raceForbiddenSchools: {
     "elfe-lunaire": ["Sortilèges", "Magie élémentaire", "Nécromancie", "Magie noire", "Voie maudite"]
   },
+  careerSchoolOverrides: {
+    ermite: ["Druidisme"],
+    "gardien-mystique": ["Druidisme"],
+    guerisseur: ["Dons", "Magie noire", "Voie maudite", "Voie sacrée"],
+    inquisiteur: ["Dons", "Magie noire", "Voie maudite", "Voie sacrée"]
+  },
   schoolTypes: {
     arcane: ["Magie élémentaire", "Nécromancie", "Sortilèges"],
     divine: ["Dons", "Druidisme", "Magie noire", "Voie maudite", "Voie sacrée"]
   },
   dualSchoolCareers: {
     animiste: { secondReligion: false, primaryType: "any", secondaryType: "any" },
+    chaman: { secondReligion: false, primaryType: "divine", secondaryType: "arcane" },
     sage: { secondReligion: true, primaryType: "divine", secondaryType: "arcane" }
   }
 };
@@ -255,6 +302,67 @@ export const competenceRules = {
   },
   exclusiveConcoctionsByCareer: {
     sage: ["concoction alchimie", "concoction herboristerie"]
+  },
+  firstFreeByCareer: firstFreeCompetenceRules,
+  scenarioResourceRules: {
+    concoctionPlantGift: {
+      keys: ["concoction alchimie", "concoction herboristerie", "concoction toxicologie"],
+      label: "Concoction",
+      detail: "5 plantes au hasard en début de scénario si le personnage possède au moins une catégorie de Concoction."
+    },
+    byCompetence: {
+      "concoction alchimie": {
+        label: "Concoction : Alchimie",
+        detail: "5 bases d'alchimie en début de scénario."
+      },
+      "concoction herboristerie": {
+        label: "Concoction : Herboristerie",
+        detail: "5 bases d'herboristerie en début de scénario."
+      },
+      "concoction toxicologie": {
+        label: "Concoction : Toxicologie",
+        detail: "5 bases de toxicologie en début de scénario."
+      },
+      forge: {
+        label: "Forge",
+        detail: "10 cartes de forge et 5 minerais au hasard en début de scénario."
+      },
+      "contact marchand mineur": {
+        label: "Contact Marchand - Mineur",
+        detail: "5 minerais au hasard en début de scénario."
+      },
+      "contact marchand druide": {
+        label: "Contact Marchand - Druide",
+        detail: "5 plantes au hasard en début de scénario."
+      },
+      "contact marchand brasseur": {
+        label: "Contact Marchand - Brasseur",
+        detail: "10 lots d'alcool en début de scénario."
+      },
+      "contact marchand forgeron": {
+        label: "Contact Marchand - Forgeron",
+        detail: "10 cartes de forge supplémentaires en début de scénario."
+      },
+      "contact marchand scribe": {
+        label: "Contact Marchand - Scribe",
+        detail: "1 parchemin de sort de niveau aléatoire 1 à 5 en début de scénario."
+      },
+      "contact marchand sorcier": {
+        label: "Contact Marchand - Sorcier",
+        detail: "1 talisman au hasard avec un seul pouvoir en début de scénario."
+      },
+      "contact marchand commanditaire": {
+        label: "Contact Marchand - Commanditaire",
+        detail: "5 couronnes en début de scénario."
+      }
+    },
+    creationAccrue: {
+      key: "creation accrue",
+      label: "Création accrue",
+      amountPerConcoction: 3,
+      detailWithConcoctions: "3 plantes au hasard supplémentaires par type de Concoction possédé ({types}: {total} plantes).",
+      detailWithoutConcoction: "3 plantes au hasard supplémentaires par type de Concoction possédé; aucune Concoction sélectionnée pour calculer le total."
+    }
   },
   access: {
     charognardRaces: ["corvus", "orque", "norde", "demi-demon", "rasgadan", "gobelin", "morgull", "saurien", "ratfolk"],

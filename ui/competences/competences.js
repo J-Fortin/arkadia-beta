@@ -228,18 +228,29 @@ function mixedSurchargeApplies(cat, gratuit=false){
   return !gratuit && carriereEstMixte() && isCareerCategory(cat) && !mixedCategoryIsShared(cat);
 }
 
-function competenceIsLectureEcriture(nom){
-  return normalizeCompetenceKey(nom).startsWith('lecture et ecriture');
+function getFirstFreeCompetenceRules(){
+  return getCompetenceRules().firstFreeByCareer || {};
 }
 
-function sageLectureGratuiteApplies(nom,rowId=''){
-  if(v('carriere')!=='sage' || !competenceIsLectureEcriture(nom))return false;
+function firstFreeRuleMatches(rule,nom){
+  const normalized=normalizeCompetenceKey(nom);
+  const names=(rule.names || []).map(name=>normalizeCompetenceKey(name));
+  if(names.includes(normalized))return true;
+
+  const prefix=normalizeCompetenceKey(rule.startsWith || '');
+  return Boolean(prefix && normalized.startsWith(prefix));
+}
+
+function firstFreeCompetenceApplies(nom,rowId=''){
+  const rules=getFirstFreeCompetenceRules()[v('carriere')] || [];
+  const rule=rules.find(candidate=>firstFreeRuleMatches(candidate,nom));
+  if(!rule)return false;
 
   const rows=[...document.querySelectorAll('#comp-tbody tr')];
   for(const row of rows){
     if(row.id===rowId)break;
     const selectedName=row.querySelector('.comp-sel')?.value?.split('|')[0] || '';
-    if(competenceIsLectureEcriture(selectedName))return false;
+    if(selectedName && firstFreeRuleMatches(rule,selectedName))return false;
   }
 
   return true;
@@ -260,11 +271,11 @@ function humanGeneralDiscountApplies(cat, rowId=''){
   return generalBefore<2;
 }
 
-function xpFinalCompetence(rawXp, cat, gratuit=false, rowId='', nom='') {
+function xpFinalCompetence(rawXp, cat, gratuit=false, rowId='', nom='', ignoreFirstFree=false) {
   let base = parseXP(rawXp);
   if (gratuit) return 0;
 
-  if (sageLectureGratuiteApplies(nom,rowId)) {
+  if (!ignoreFirstFree && firstFreeCompetenceApplies(nom,rowId)) {
     return 0;
   }
 
@@ -284,8 +295,8 @@ function noteCoutMixte(cat, gratuit=false) {
   return annuleSurcoutMixte() ? ' [surcoût mixte annulé]' : ' [mixte +1]';
 }
 
-function noteLectureSage(nom,rowId=''){
-  return sageLectureGratuiteApplies(nom,rowId)?' [Sage 1er gratuit]':'';
+function noteFirstFreeCompetence(nom,rowId=''){
+  return firstFreeCompetenceApplies(nom,rowId)?' [1er gratuit]':'';
 }
 
 function noteRabaisHumain(cat,rowId,gratuit=false){
@@ -404,16 +415,17 @@ function rebuildCompSelect(sel){
       .sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
       .forEach(o=>{
       const gratuit=Boolean(o.gratuit);
+      const firstFree=!gratuit && firstFreeCompetenceApplies(o.nom,rowId);
       const xpNum=xpFinalCompetence(o.xp, o.cat, gratuit, rowId, o.nom);
       const meta=getCompetenceMeta(o.nom, cat);
       const cumulableMax=parseInt(o.cumulableMax,10)||getCumulableMax(o.nom, cat);
       const frequencyLabel=meta.frequence?` · ${meta.frequence}`:'';
       const cumulableLabel=cumulableMax>1?` · max ${cumulableMax}`:'';
-      const note=o.note?` [${o.note}]`:`${noteLectureSage(o.nom,rowId)}${noteRabaisHumain(o.cat,rowId,gratuit)}${noteCoutMixte(o.cat, gratuit)}`;
-      const freeLabel=gratuit && cumulableMax>1?' [1er GRATUIT]':' [GRATUIT]';
-      const label=getCompetenceSourcePrefix(cat)+o.nom+(gratuit?freeLabel:note);
-      const extraXp=gratuit?getExtraXpForFreeCompetence(o.nom,o.baseXp || o.xp,rowId):xpNum;
-      const xpDisplay=gratuit?(cumulableMax>1?`1er GRATUIT, puis ${extraXp} XP`:'GRATUIT'):`${xpNum} XP`;
+      const note=o.note?` [${o.note}]`:`${noteFirstFreeCompetence(o.nom,rowId)}${noteRabaisHumain(o.cat,rowId,gratuit || firstFree)}${noteCoutMixte(o.cat, gratuit || firstFree)}`;
+      const freeLabel=(gratuit || firstFree) && cumulableMax>1?' [1er GRATUIT]':' [GRATUIT]';
+      const label=getCompetenceSourcePrefix(cat)+o.nom+(gratuit || firstFree?freeLabel:note);
+      const extraXp=(gratuit || firstFree)?getExtraXpForFreeCompetence(o.nom,o.baseXp || o.xp,rowId,true):xpNum;
+      const xpDisplay=(gratuit || firstFree)?(cumulableMax>1?`1er GRATUIT, puis ${extraXp} XP`:'GRATUIT'):`${xpNum} XP`;
       optHtml+=`<option value="${o.nom}|${o.xp}|${gratuit?'gratuit':''}|${cat}|${cumulableMax}|${o.baseXp || o.xp}">${label} — ${xpDisplay}${frequencyLabel}${cumulableLabel}</option>`;
     });
     optHtml+='</optgroup>';
@@ -435,7 +447,7 @@ function getPaidOptionsForCompetence(nom){
   const normalized=normalizeCompetenceKey(nom);
 
   return getDatabaseCompetenceOptions().filter(option=>{
-    if(option.gratuit || normalizeCompetenceKey(option.nom)!==normalized)return false;
+    if(option.gratuit || parseXP(option.xp)<=0 || normalizeCompetenceKey(option.nom)!==normalized)return false;
     const carriereOk=!option.carriere || option.carriere===carr;
     const raceOk=!option.race || option.race===race;
     return carriereOk && raceOk;
@@ -448,7 +460,7 @@ function getPaidOptionsForCompetence(nom){
   }).filter(option=>competenceAllowedByCodexRestrictions(option));
 }
 
-function getExtraXpForFreeCompetence(nom, fallbackXp, rowId=''){
+function getExtraXpForFreeCompetence(nom, fallbackXp, rowId='', ignoreFirstFree=false){
   const paidOptions=getPaidOptionsForCompetence(nom);
   const careerOption=paidOptions.find(option=>option.carriere===v('carriere'));
   const generalOption=paidOptions.find(option=>!option.carriere && !option.race);
@@ -457,7 +469,7 @@ function getExtraXpForFreeCompetence(nom, fallbackXp, rowId=''){
   const rawXp=option?.xp ?? fallbackXp;
   const cat=option?.cat || 'Générale';
 
-  return xpFinalCompetence(rawXp,cat,false,rowId);
+  return xpFinalCompetence(rawXp,cat,false,rowId,nom,ignoreFirstFree);
 }
 
 function setCompCountOptions(countSel, max, selected='1') {
@@ -588,8 +600,9 @@ function onCompSel(sel,rowId,overrideXP,overrideFreq,overrideCount,skipRefresh=f
   const baseXpRaw=parts[5]||xpRaw;
   const meta=getCompetenceMeta(nom, cat);
   const maxCumulable=parseInt(maxRaw,10)||getCumulableMax(nom, cat);
-  const firstXp=gratuit?0:xpFinalCompetence(xpRaw,cat,gratuit,rowId,nom);
-  const extraXp=gratuit?getExtraXpForFreeCompetence(nom,baseXpRaw,rowId):firstXp;
+  const firstFree=!gratuit && firstFreeCompetenceApplies(nom,rowId);
+  const firstXp=gratuit || firstFree?0:xpFinalCompetence(xpRaw,cat,gratuit,rowId,nom);
+  const extraXp=gratuit || firstFree?getExtraXpForFreeCompetence(nom,baseXpRaw,rowId,true):firstXp;
   const count=overrideCount!==undefined&&overrideCount!==''?overrideCount:'1';
 
   xpIn.dataset.firstXp=String(firstXp);

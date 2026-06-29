@@ -50,7 +50,9 @@ function updateSelectionGuidance() {
   const hasReligion = Boolean(v("religion"));
   const hasMoralite = Boolean(v("moralite"));
   const needsEcole = isMagicCareerSelected();
-  const hasEcole = typeof getSelectedSpellSchools === "function" ? getSelectedSpellSchools().length > 0 : Boolean(v("ecole"));
+  const hasEcole = typeof spellSchoolsMeetRequirements === "function"
+    ? spellSchoolsMeetRequirements()
+    : Boolean(v("ecole"));
 
   if (hasRace) setStepState("race", "done", "Race sélectionnée");
   if (hasCarriere) setStepState("carriere", "done", "Carrière sélectionnée");
@@ -80,7 +82,10 @@ function updateSelectionGuidance() {
   }
 
   if (needsEcole && !hasEcole) {
-    setStepState("ecole", "active", "La divinité est choisie; sélectionne maintenant l'école de magie.");
+    const message = typeof spellSchoolRequirementMessage === "function"
+      ? spellSchoolRequirementMessage()
+      : "La divinité est choisie; sélectionne maintenant l'école de magie.";
+    setStepState("ecole", "active", message);
     return;
   }
 

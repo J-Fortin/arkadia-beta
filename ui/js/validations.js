@@ -190,11 +190,62 @@ function validerMoraliteDivinite() {
   return ok;
 }
 
+function setEcolesInvalid(isInvalid) {
+  ['ecole', 'ecole-2'].forEach(id => {
+    const field = g(id);
+    const wrap = field?.closest('.col, .col-2, .col-3, .col-full');
+    field?.classList.toggle('invalid-field', isInvalid);
+    wrap?.classList.toggle('invalid-choice', isInvalid);
+  });
+}
+
+function validerEcolesMagie(showMissing = true) {
+  const alertEl = document.getElementById('alert-ecole-magie');
+  const carriere = getDatabaseCarriereOption(v('carriere'));
+  const selected = typeof getSelectedSpellSchools === 'function' ? getSelectedSpellSchools() : [v('ecole')].filter(Boolean);
+  const needsSchools = carriereDonneAccesSorts(carriere);
+
+  setEcolesInvalid(false);
+
+  if (!needsSchools) {
+    alertEl?.classList.remove('show');
+    if (alertEl) alertEl.innerHTML = '';
+    return true;
+  }
+
+  const valid = typeof spellSchoolsMeetRequirements === 'function'
+    ? spellSchoolsMeetRequirements()
+    : selected.length > 0;
+
+  if (valid) {
+    alertEl?.classList.remove('show');
+    if (alertEl) alertEl.innerHTML = '';
+    return true;
+  }
+
+  if (!showMissing && selected.length === 0) {
+    alertEl?.classList.remove('show');
+    if (alertEl) alertEl.innerHTML = '';
+    return true;
+  }
+
+  const message = typeof spellSchoolRequirementMessage === 'function'
+    ? spellSchoolRequirementMessage()
+    : "Choisis une école de magie permise.";
+  if (alertEl) {
+    alertEl.innerHTML = `⛔ <b>Écoles de magie incomplètes :</b> ${message}`;
+    alertEl.classList.add('show');
+  }
+  setEcolesInvalid(true);
+  return false;
+}
+
 function formulaireEstValidePourExport() {
   const validations = [
     validerInformationsJoueurObligatoires(),
     validerCombinaisonRaceCarriere(),
-    validerMoraliteDivinite()
+    validerMoraliteDivinite(),
+    validerEcolesMagie(true)
   ];
   const ok = validations.every(Boolean);
 

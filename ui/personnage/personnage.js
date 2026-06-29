@@ -255,32 +255,37 @@ function updateEcoleSelector(){
   if(c&&carriereDonneAccesSorts(c)&&d&&dual){
     const primaryOptions=getDualSchoolOptions('primary',carr);
     const secondaryOptions=getDualSchoolOptions('secondary',carr);
+    const schoolRule=getCareerSchoolRule(carr) || {};
     const isSage=carr==='sage';
+    const primaryType=schoolRule.primaryType;
+    const secondaryType=schoolRule.secondaryType;
+    const primaryLabel=primaryType==='divine'?'École divine':primaryType==='arcane'?'École arcane':'École de magie 1';
+    const secondaryLabel=secondaryType==='divine'?'École divine':secondaryType==='arcane'?'École arcane':'École de magie 2';
     ecoleEl.style.display='block';
     ecoleTxt.style.display='none';
     if(ecole2Wrap)ecole2Wrap.style.display='block';
-    if(ecoleLabel)ecoleLabel.textContent=isSage?'École divine':'École de magie 1';
-    if(ecole2Label)ecole2Label.textContent=isSage?'École arcane':'École de magie 2';
+    if(ecoleLabel)ecoleLabel.textContent=primaryLabel;
+    if(ecole2Label)ecole2Label.textContent=secondaryLabel;
 
     setSchoolSelectOptions(
       ecoleEl,
       primaryOptions,
-      isSage?'-- Choisir l\'école divine --':'-- Choisir une première école --',
+      primaryType==='divine'?'-- Choisir l\'école divine --':primaryType==='arcane'?'-- Choisir l\'école arcane --':'-- Choisir une première école --',
       currentEcole
     );
     setSchoolSelectOptions(
       ecole2El,
       secondaryOptions,
-      isSage?'-- Choisir l\'école arcane --':'-- Choisir une deuxième école --',
+      secondaryType==='divine'?'-- Choisir l\'école divine --':secondaryType==='arcane'?'-- Choisir l\'école arcane --':'-- Choisir une deuxième école --',
       currentEcole2,
       isSage?'':ecoleEl.value
     );
 
     if(!isSage && ecole2El && normalizeCompetenceKey(ecole2El.value)===normalizeCompetenceKey(ecoleEl.value))ecole2El.value='';
-    eclBadge.textContent=isSage?'Choisir une école divine':'Première école permise';
+    eclBadge.textContent=primaryType==='divine'?'Choisir une école divine':primaryType==='arcane'?'Choisir une école arcane':'Première école permise';
     eclBadge.style.display=ecoleEl.value?'none':'block';
     if(ecl2Badge){
-      ecl2Badge.textContent=isSage?'Choisir une école arcane':'Deuxième école permise';
+      ecl2Badge.textContent=secondaryType==='divine'?'Choisir une école divine':secondaryType==='arcane'?'Choisir une école arcane':'Deuxième école permise';
       ecl2Badge.style.display=ecole2El?.value?'none':'block';
     }
   } else if(c&&carriereDonneAccesSorts(c)&&d){
@@ -316,6 +321,7 @@ function updateEcoleSelector(){
     eclBadge.style.display='none';
     ecoleTxt.value=c?'Carrière non-magique - pas de sorts':'Choisir une carrière magique et une divinité';
   }
+  if(typeof validerEcolesMagie==='function')validerEcolesMagie(false);
 }
 
 function onEcole(){
@@ -335,6 +341,7 @@ function onEcole(){
   });
   refreshAllSortRows();
   updateCompetences();
+  if(typeof validerEcolesMagie==='function')validerEcolesMagie(false);
   updateSelectionGuidance();
 }
 

@@ -1,10 +1,11 @@
 // ===================== SAVE / LOAD =====================
 function collecterFiche(){
-  const data={v:'2.6',
+  const titresEtNotes=v('titres');
+  const data={v:'2.8',
     joueur:{nom:v('j-nom'),naiss:v('j-naiss'),premier:v('j-premier'),tel:v('j-tel'),email:v('j-email'),allergies:v('j-allergies'),u1nom:v('u1-nom'),u1tel:v('u1-tel'),u2nom:v('u2-nom'),u2tel:v('u2-tel')},
-    personnage:{nom:v('p-nom'),premier:v('p-premier'),race:v('race'),raceVariant:v('race-variant'),carriere:v('carriere'),moralite:v('moralite'),religion:v('religion'),religion2:v('religion-2'),ecole:v('ecole'),ecole2:v('ecole-2'),maison:v('maison'),noblesse:v('noblesse'),ptsArmure:v('pts-armure'),typeArmure:v('type-armure'),chancesActuelles:v('chances-actuelles'),chancesMax:getRaceChanceMax(),faiblesses:v('faiblesses'),immunites:v('immunites'),evenementsParticipes:v('xp-total'),xpEvenements:getEventXpUsed(),xpTotal:v('xp-total'),ressources:v('ressources'),titres:v('titres'),notes:v('notes'),bg:v('bg')},
+    personnage:{nom:v('p-nom'),premier:v('p-premier'),race:v('race'),raceVariant:v('race-variant'),carriere:v('carriere'),moralite:v('moralite'),religion:v('religion'),religion2:v('religion-2'),ecole:v('ecole'),ecole2:v('ecole-2'),maison:v('maison'),noblesse:v('noblesse'),ptsArmure:v('pts-armure'),typeArmure:v('type-armure'),chancesActuelles:v('chances-actuelles'),chancesMax:getRaceChanceMax(),faiblesses:v('faiblesses'),immunites:v('immunites'),evenementsParticipes:v('xp-total'),xpEvenements:getEventXpUsed(),xpTotal:v('xp-total'),ressources:v('ressources'),titres:titresEtNotes,notes:titresEtNotes,bg:v('bg')},
     audit:{eventCountBaseline,eventCountCurrent:parseInt(v('xp-total'))||0,eventAbuseWarning:getEventAbuseWarning(),chanceCountBaseline,chanceCountCurrent:parseInt(v('chances-actuelles'))||0,chanceMax:getRaceChanceMax(),chanceAbuseWarning:getChanceAbuseWarning()},
-    competences:[],sorts:[],evenements:[]
+    competences:[],sorts:[],competencesSpeciales:[],sortsSpeciaux:[],evenements:[]
   };
 
   document.querySelectorAll('#comp-tbody tr').forEach(tr=>{
@@ -24,6 +25,9 @@ function collecterFiche(){
     const xp=tr.querySelector('.sort-xp')?.value||'0';
     if(ecole||lvl||nom)data.sorts.push({ecole,lvl,nom,xp});
   });
+
+  data.competencesSpeciales=typeof collectSpecialCompetences==='function'?collectSpecialCompetences():[];
+  data.sortsSpeciaux=typeof collectSpecialSorts==='function'?collectSpecialSorts():[];
 
   document.querySelectorAll('#ev-tbody tr').forEach(tr=>{
     const ins=tr.querySelectorAll('input');
@@ -105,6 +109,14 @@ function normaliserEvenementsParticipes(valeur, version='2.2'){
   return raw;
 }
 
+function fusionnerTitresEtNotes(titres='',notes=''){
+  const titleText=String(titres || '').trim();
+  const notesText=String(notes || '').trim();
+  if(!titleText)return notesText;
+  if(!notesText || notesText===titleText)return titleText;
+  return `${titleText}\n\n${notesText}`;
+}
+
 function charger(d){
   let fallbackEcole='';
   if(d.joueur){
@@ -130,12 +142,16 @@ function charger(d){
     chanceCountBaseline=parseInt(v('chances-actuelles'))||0;
     sv('xp-total',p.evenementsParticipes ?? normaliserEvenementsParticipes(p.xpTotal,d.v));sv('ressources',p.ressources);
     eventCountBaseline=parseInt(v('xp-total'))||0;
-    sv('titres',p.titres);sv('notes',p.notes);sv('bg',p.bg);
+    sv('titres',fusionnerTitresEtNotes(p.titres,p.notes));sv('bg',p.bg);
   }
   g('comp-tbody').innerHTML='';compRows=0;
   (d.competences||[]).forEach(c=>addComp(c.nom,c.xp,c.freq,c.count||'1'));
   g('sorts-tbody').innerHTML='';sortRows=0;
   (d.sorts||[]).forEach(s=>addSort(s.lvl,s.nom,s.xp,s.ecole || fallbackEcole));
+  g('special-comp-tbody').innerHTML='';specialCompRows=0;
+  (d.competencesSpeciales||d.specialCompetences||[]).forEach(c=>addSpecialComp(c.nom,c.freq,c.count||'1',c.xp,c.note));
+  g('special-sort-tbody').innerHTML='';specialSortRows=0;
+  (d.sortsSpeciaux||d.specialSorts||[]).forEach(s=>addSpecialSort(s.ecole,s.lvl,s.nom,s.xp,s.note));
   g('ev-tbody').innerHTML='';evRows=0;
   (d.evenements||[]).forEach(e=>addEv(e.ev,e.saison));
   calcEvXP();

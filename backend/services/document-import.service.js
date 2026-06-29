@@ -34,6 +34,8 @@ const sectionAliases = [
   { key: "joueur", labels: ["informations du joueur", "joueur", "information joueur"] },
   { key: "personnage", labels: ["identite du personnage", "personnage", "fiche personnage"] },
   { key: "xp", labels: ["xp", "xps"] },
+  { key: "competencesSpeciales", labels: ["competences speciales", "capacites speciales de l animation"] },
+  { key: "sortsSpeciaux", labels: ["sorts speciaux", "sorts speciaux de l animation"] },
   { key: "competences", labels: ["competences"] },
   { key: "sorts", labels: ["sorts"] },
   { key: "evenements", labels: ["historique des evenements", "evenements"] }
@@ -204,6 +206,39 @@ function parseSorts(lines) {
   }).filter((item) => item?.nom);
 }
 
+function parseCompetencesSpeciales(lines) {
+  return sectionLines(lines, "competencesSpeciales").map((line) => {
+    const cells = line.split(/\t+|\s{2,}/).map((cell) => cell.trim()).filter(Boolean);
+    if (cells.length < 2 || fold(cells[0]).includes("nom")) return null;
+
+    return {
+      nom: cells[0],
+      freq: cells[1] && !/^\d+$/.test(cells[1]) ? cells[1] : "",
+      count: cells.find((cell) => /^\d+$/.test(cell)) || "1",
+      xp: cells[cells.length - 2]?.match(/^\d+$/) ? cells[cells.length - 2] : cells[cells.length - 1]?.match(/^\d+$/) ? cells[cells.length - 1] : "0",
+      note: cells.length > 4 ? cells[cells.length - 1] : ""
+    };
+  }).filter((item) => item?.nom);
+}
+
+function parseSortsSpeciaux(lines) {
+  return sectionLines(lines, "sortsSpeciaux").map((line) => {
+    const cells = line.split(/\t+|\s{2,}/).map((cell) => cell.trim()).filter(Boolean);
+    if (cells.length < 2 || fold(cells[0]).includes("ecole")) return null;
+
+    const levelIndex = cells.findIndex((cell) => /^\d+$/.test(cell));
+    if (levelIndex === -1) return null;
+
+    return {
+      ecole: levelIndex > 0 ? cells.slice(0, levelIndex).join(" ") : "",
+      lvl: cells[levelIndex],
+      nom: cells[levelIndex + 1] || "",
+      xp: cells[cells.length - 2]?.match(/^\d+$/) ? cells[cells.length - 2] : cells[cells.length - 1]?.match(/^\d+$/) ? cells[cells.length - 1] : "0",
+      note: cells.length > levelIndex + 3 ? cells[cells.length - 1] : ""
+    };
+  }).filter((item) => item?.nom);
+}
+
 function parseEvenements(lines) {
   return sectionLines(lines, "evenements").map((line) => {
     const cells = line.split(/\t+|\s{2,}/).map((cell) => cell.trim()).filter(Boolean);
@@ -276,7 +311,7 @@ function parseCharacterText(text, sourceLabel) {
   };
 
   const data = {
-    v: "2.7",
+    v: "2.8",
     joueur,
     personnage,
     audit: {
@@ -287,6 +322,8 @@ function parseCharacterText(text, sourceLabel) {
     },
     competences: parseCompetences(lines),
     sorts: parseSorts(lines),
+    competencesSpeciales: parseCompetencesSpeciales(lines),
+    sortsSpeciaux: parseSortsSpeciaux(lines),
     evenements: parseEvenements(lines)
   };
 
@@ -299,6 +336,8 @@ function parseCharacterText(text, sourceLabel) {
     personnage.carriere,
     data.competences.length,
     data.sorts.length,
+    data.competencesSpeciales.length,
+    data.sortsSpeciaux.length,
     data.evenements.length
   ].filter(Boolean);
 
