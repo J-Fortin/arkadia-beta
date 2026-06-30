@@ -6,6 +6,7 @@ import {
   canonicalTextAliases,
   codexCumulableCompetences,
   defaultRaceChances,
+  excludedCompetenceNames,
   getClientCodexRules,
   mixedCareerSources,
   raceChanceOverrides,
@@ -160,6 +161,10 @@ function getCodexCumulableMax(value) {
   return codexCumulableCompetences.has(normalizedCompetenceName(value)) ? 5 : 1;
 }
 
+function isExcludedCompetence(value) {
+  return excludedCompetenceNames.has(normalizedCompetenceName(value));
+}
+
 function isNameValue(value) {
   const text = sheetValue(value);
   return Boolean(text && !/^-?\d+(\.\d+)?$/.test(text));
@@ -189,6 +194,21 @@ function filterMappedSchools(map, allowedSchools) {
   Object.keys(map).forEach((key) => {
     map[key] = uniqueByKey(map[key] || [], (school) => school)
       .filter((school) => allowedSchools.has(school));
+  });
+}
+
+function replaceHiddenDivinityRestrictions(map, hiddenValues, replacementOptions) {
+  const replacements = replacementOptions.map((option) => option.value);
+
+  Object.keys(map).forEach((key) => {
+    const current = map[key] || [];
+    const next = current.filter((value) => !hiddenValues.has(value));
+
+    if (current.some((value) => hiddenValues.has(value))) {
+      replacements.forEach((value) => pushUniqueValue(next, value));
+    }
+
+    map[key] = next;
   });
 }
 
@@ -608,12 +628,18 @@ export async function getDatabaseOptions() {
   const uniqueEcoles = uniqueOptions(ecoles);
   const realSchoolNames = new Set(uniqueEcoles.map((option) => option.value));
   const magicRuleSet = getClientCodexRules().magic || {};
+  const hiddenDivinities = new Set(magicRuleSet.hiddenDivinities || []);
+  const extraDivinities = magicRuleSet.extraDivinities || [];
 
   Object.entries(magicRuleSet.careerSchoolOverrides || {}).forEach(([carriere, schools]) => {
     ecolesParCarriere[carriere] = schools;
   });
+  Object.entries(magicRuleSet.divinitySchoolOverrides || {}).forEach(([divinite, schools]) => {
+    ecolesParDivinite[divinite] = schools;
+  });
   filterMappedSchools(ecolesParCarriere, realSchoolNames);
   filterMappedSchools(ecolesParDivinite, realSchoolNames);
+  replaceHiddenDivinityRestrictions(divinitesPermisesParRace, hiddenDivinities, extraDivinities);
 
   const uniqueCareerValues = uniqueCarrieres.map((option) => option.value);
   const carriereDonneAccesSorts = (carriere) => Number(carriere.ptsMagie) > 0 || Number(carriere.maxMagique) > 0;
@@ -657,7 +683,10 @@ export async function getDatabaseOptions() {
   return {
     races: uniqueOptions(races),
     carrieres: uniqueOptions(carrieres),
-    religions: uniqueOptions(religions),
+    religions: uniqueOptions([
+      ...religions.filter((option) => !hiddenDivinities.has(option.value)),
+      ...extraDivinities
+    ]),
     moralites: uniqueOptions(moralites),
     ecoles: uniqueEcoles,
     ecolesParCarriere,
@@ -673,7 +702,7 @@ export async function getDatabaseOptions() {
     immunitesParRace,
     immunitesParCarriere,
     immunitesParCompetence,
-    competences: uniqueByKey(competences, (option) => [
+    competences: uniqueByKey(competences.filter((option) => !isExcludedCompetence(option.nom)), (option) => [
       option.cat,
       option.nom,
       option.race || "",

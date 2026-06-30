@@ -131,9 +131,11 @@ function getDatabaseMoraliteOption(moraliteKey = v("moralite")) {
   return (DATABASE_OPTIONS?.moralites || []).find((option) => option.value === moraliteKey) || null;
 }
 
-function getAllowedSchoolsForDivinite(divinite) {
+function getAllowedSchoolsForDivinite(divinite, moralite = v("moralite")) {
   const databaseSchools = DATABASE_OPTIONS?.ecolesParDivinite?.[divinite];
-  if (Array.isArray(databaseSchools) && databaseSchools.length > 0) return filterKnownMagicSchools(databaseSchools);
+  if (Array.isArray(databaseSchools) && databaseSchools.length > 0) {
+    return filterSchoolsForMorality(filterKnownMagicSchools(databaseSchools), moralite);
+  }
 
   return [];
 }
@@ -154,6 +156,29 @@ function schoolExistsInDatabase(ecole) {
 
 function filterKnownMagicSchools(schools) {
   return uniqueTexts((schools || []).filter((school) => schoolExistsInDatabase(school)));
+}
+
+function getSchoolRemovalsForMorality(moralite = v("moralite")) {
+  return getMagicRules().schoolRemovalsByMorality?.[moralite] || [];
+}
+
+function filterSchoolsForMorality(schools, moralite = v("moralite")) {
+  const removals = getSchoolRemovalsForMorality(moralite).map((school) => normalizeCompetenceKey(school));
+  if (!removals.length) return schools;
+  return schools.filter((school) => !removals.includes(normalizeCompetenceKey(school)));
+}
+
+function getAllowedMoralitiesForDivinity(divinite) {
+  const allowed = getMagicRules().moralitiesByDivinity?.[divinite];
+  return Array.isArray(allowed) ? allowed : [];
+}
+
+function selectedDivinitiesAllowMorality(moralite = v("moralite"), divinities = getSelectedDivinitiesForSchools()) {
+  if (!moralite) return true;
+  return divinities.every((divinite) => {
+    const allowed = getAllowedMoralitiesForDivinity(divinite);
+    return !allowed.length || allowed.includes(moralite);
+  });
 }
 
 function getCareerSchoolRule(carriereKey = v("carriere")) {
@@ -315,9 +340,13 @@ function getAllowedDivinitiesForRace(raceKey = v("race")) {
 
 function getMoraliteOptionsForSelection(raceKey = v("race")) {
   const allowed = getAllowedMoralitesForRace(raceKey);
+  const divinities = getSelectedDivinitiesForSchools();
   const options = DATABASE_OPTIONS?.moralites || [];
-  if (allowed.length === 0) return options;
-  return options.filter((option) => allowed.includes(option.value));
+
+  return options.filter((option) => {
+    if (allowed.length > 0 && !allowed.includes(option.value)) return false;
+    return selectedDivinitiesAllowMorality(option.value, divinities);
+  });
 }
 
 function getReligionOptionsForSelection(raceKey = v("race")) {

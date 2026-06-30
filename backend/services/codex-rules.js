@@ -182,6 +182,10 @@ export const cumulableCompetenceNames = [
 
 export const codexCumulableCompetences = new Set(cumulableCompetenceNames);
 
+export const excludedCompetenceNames = new Set([
+  "test"
+]);
+
 export const firstFreeCompetenceRules = {
   barbare: [
     { names: ["bravoure"] }
@@ -254,6 +258,99 @@ export const canonicalTextAliases = {
 export const magicRules = {
   raceForbiddenSchools: {
     "elfe-lunaire": ["Sortilèges", "Magie élémentaire", "Nécromancie", "Magie noire", "Voie maudite"]
+  },
+  schoolRemovalsByMorality: {
+    benefique: ["Voie maudite", "Magie noire"],
+    balancee: ["Voie maudite"],
+    malefique: ["Voie sacrée"]
+  },
+  extraDivinities: [
+    { value: "Esprit de la guerre (Ulrick Silverwolf)", label: "Esprit de la guerre (Ulrick Silverwolf)" },
+    { value: "Esprit de la guerre (Odann)", label: "Esprit de la guerre (Odann)" },
+    { value: "Esprit de la guerre (Khurn)", label: "Esprit de la guerre (Khurn)" }
+  ],
+  hiddenDivinities: ["Esprits de la guerre"],
+  moralitiesByDivinity: {
+    Adramelech: ["malefique"],
+    Amida: ["benefique", "balancee"],
+    Arawn: ["balancee", "malefique"],
+    Argonas: ["benefique", "balancee", "malefique"],
+    Asmodérus: ["balancee", "malefique"],
+    "Atem'ra": ["malefique"],
+    Baku: ["benefique", "balancee"],
+    Baldur: ["benefique"],
+    Cyrder: ["balancee"],
+    Eir: ["benefique"],
+    Elûna: ["benefique", "balancee"],
+    "Esprit de l'Aube": ["benefique", "balancee"],
+    "Esprit de la Nuit": ["malefique"],
+    "Esprit de la guerre (Ulrick Silverwolf)": ["benefique"],
+    "Esprit de la guerre (Odann)": ["benefique", "balancee"],
+    "Esprit de la guerre (Khurn)": ["malefique"],
+    "Esprits de la Nature": ["benefique", "balancee", "malefique"],
+    "Esprits des Morts": ["benefique", "balancee", "malefique"],
+    "Essence infernale": ["malefique"],
+    Honir: ["balancee"],
+    "Izanagi & Izanami": ["benefique", "malefique"],
+    Leviastis: ["malefique"],
+    Lumer: ["benefique", "balancee"],
+    Magni: ["benefique", "balancee"],
+    Magystia: ["benefique", "balancee"],
+    Malveria: ["malefique"],
+    Maskorino: ["benefique", "balancee", "malefique"],
+    Modi: ["benefique", "balancee"],
+    Myrkar: ["benefique", "balancee"],
+    "O-Kuni-Nushi": ["benefique", "balancee", "malefique"],
+    Salazaar: ["malefique"],
+    Thalia: ["malefique"],
+    Thrud: ["benefique", "balancee"],
+    Thurdek: ["benefique", "balancee"],
+    Vali: ["balancee", "malefique"],
+    Vermilord: ["balancee", "malefique"],
+    Vidar: ["benefique", "balancee", "malefique"],
+    Vorn: ["malefique"],
+    Walërya: ["benefique", "malefique"]
+  },
+  divinitySchoolOverrides: {
+    Adramelech: ["Nécromancie", "Druidisme", "Voie maudite", "Magie noire"],
+    Amida: ["Voie sacrée", "Dons", "Druidisme"],
+    Arawn: ["Nécromancie", "Dons", "Magie noire"],
+    Argonas: ["Dons", "Magie noire", "Sortilèges", "Nécromancie"],
+    Asmodérus: ["Voie maudite", "Sortilèges", "Magie noire", "Dons"],
+    "Atem'ra": ["Nécromancie", "Voie maudite", "Magie noire"],
+    Baku: ["Voie sacrée", "Dons", "Druidisme"],
+    Baldur: ["Voie sacrée", "Magie élémentaire", "Dons"],
+    Cyrder: ["Druidisme", "Dons", "Magie élémentaire"],
+    Eir: ["Dons", "Voie sacrée"],
+    Elûna: ["Druidisme", "Dons"],
+    "Esprit de l'Aube": ["Voie sacrée", "Dons", "Magie élémentaire", "Druidisme"],
+    "Esprit de la Nuit": ["Nécromancie", "Voie maudite", "Magie noire", "Druidisme"],
+    "Esprit de la guerre (Ulrick Silverwolf)": ["Voie sacrée", "Dons", "Druidisme"],
+    "Esprit de la guerre (Odann)": ["Dons", "Magie élémentaire"],
+    "Esprit de la guerre (Khurn)": ["Magie noire", "Voie maudite"],
+    "Esprits de la Nature": ["Druidisme", "Dons", "Magie noire"],
+    "Esprits des Morts": ["Nécromancie", "Druidisme"],
+    "Essence infernale": ["Magie noire", "Sortilèges", "Voie maudite", "Magie élémentaire"],
+    Honir: ["Dons", "Sortilèges"],
+    "Izanagi & Izanami": ["Voie sacrée", "Dons", "Magie noire", "Nécromancie", "Voie maudite"],
+    Leviastis: ["Nécromancie", "Voie maudite", "Magie noire", "Sortilèges", "Magie élémentaire"],
+    Lumer: ["Voie sacrée", "Dons", "Magie élémentaire"],
+    Magni: ["Magie élémentaire", "Dons"],
+    Magystia: ["Sortilèges", "Magie élémentaire", "Nécromancie"],
+    Malveria: ["Nécromancie", "Druidisme", "Magie noire", "Voie maudite"],
+    Maskorino: ["Dons", "Magie noire", "Sortilèges"],
+    Modi: ["Dons"],
+    Myrkar: ["Dons", "Magie élémentaire", "Sortilèges"],
+    "O-Kuni-Nushi": ["Druidisme", "Dons", "Sortilèges", "Magie élémentaire", "Nécromancie"],
+    Salazaar: ["Magie noire", "Magie élémentaire"],
+    Thalia: ["Voie maudite", "Sortilèges", "Magie noire", "Nécromancie"],
+    Thrud: ["Druidisme", "Dons", "Magie élémentaire"],
+    Thurdek: ["Dons", "Magie élémentaire"],
+    Vali: ["Voie maudite", "Sortilèges"],
+    Vermilord: ["Magie noire", "Voie maudite", "Nécromancie", "Druidisme"],
+    Vidar: ["Dons", "Magie noire"],
+    Vorn: ["Nécromancie", "Voie maudite", "Magie noire", "Magie élémentaire"],
+    Walërya: ["Voie maudite", "Voie sacrée", "Sortilèges"]
   },
   careerSchoolOverrides: {
     ermite: ["Druidisme"],

@@ -180,6 +180,15 @@ function validerMoraliteDivinite() {
       alertDiv.innerHTML = `⛔ <b>Divinité incompatible :</b> La base ne permet pas <b>${invalidReligion}</b> pour cette race.`;
       alertDiv.classList.add('show');
       ok = false;
+    } else if (moralite && typeof selectedDivinitiesAllowMorality === 'function' && !selectedDivinitiesAllowMorality(moralite, [religion, religion2].filter(Boolean))) {
+      const labMoral = getDatabaseMoraliteOption(moralite)?.label || moralite;
+      const invalidDivinity = [religion, religion2].filter(Boolean).find((divinite) => {
+        const allowed = getAllowedMoralitiesForDivinity(divinite);
+        return allowed.length > 0 && !allowed.includes(moralite);
+      });
+      alertDiv.innerHTML = `⛔ <b>Moralité incompatible :</b> <b>${labMoral}</b> n'est pas permise par <b>${invalidDivinity || 'la divinité choisie'}</b>.`;
+      alertDiv.classList.add('show');
+      ok = false;
     } else {
       alertDiv.classList.remove('show');
     }

@@ -90,9 +90,16 @@ assert(options.rules?.magic?.dualSchoolCareers?.sage?.secondReligion === true, "
 assert(options.rules?.magic?.dualSchoolCareers?.animiste, "La regle Animiste doit etre exposee au frontend.");
 assert(options.rules?.magic?.dualSchoolCareers?.chaman?.primaryType === "divine", "La regle Chaman doit demander une ecole divine.");
 assert(options.rules?.magic?.dualSchoolCareers?.chaman?.secondaryType === "arcane", "La regle Chaman doit demander une ecole arcane.");
+assert(options.rules?.magic?.schoolRemovalsByMorality?.benefique?.includes("Magie noire"), "La moralite benefique doit retirer la magie noire.");
+assert(options.rules?.magic?.moralitiesByDivinity?.Cyrder?.includes("balancee"), "Les moralites par divinite doivent etre exposees.");
+assert(options.rules?.magic?.divinitySchoolOverrides?.Magystia?.includes("Nécromancie"), "Les corrections d'ecoles par divinite doivent etre exposees.");
 assert(options.rules?.competences?.concoctionRules?.["concoction alchimie"], "Les regles de concoction doivent etre exposees au frontend.");
 assert(options.rules?.competences?.scenarioResourceRules?.byCompetence?.forge, "Les ressources de debut de scenario doivent etre exposees au frontend.");
 assert(options.rules?.competences?.scenarioResourceRules?.creationAccrue?.key, "La regle de Creation accrue doit etre exposee au frontend.");
+assert(!options.competences.some((option) => normalizeCompetenceKey(option.nom) === "test"), "La competence Test ne doit pas etre exposee.");
+assert(options.religions.some((option) => option.value === "Esprit de la guerre (Odann)"), "Les variantes des Esprits de la guerre doivent etre creees.");
+assert(!options.religions.some((option) => option.value === "Esprits de la guerre"), "Le choix generique Esprits de la guerre ne doit pas etre expose sans ecoles.");
+assert(options.ecolesParDivinite?.["Esprit de la guerre (Khurn)"]?.includes("Voie maudite"), "Khurn doit donner acces a la Voie maudite.");
 assert(options.ecolesParCarriere?.ermite?.includes("Druidisme"), "Ermite doit avoir acces au Druidisme.");
 assert(options.ecolesParCarriere?.["gardien-mystique"]?.includes("Druidisme"), "Gardien mystique doit avoir acces au Druidisme.");
 assert(options.ecolesParCarriere?.guerisseur?.includes("Dons"), "Guerisseur doit avoir acces aux ecoles du Pretre.");
