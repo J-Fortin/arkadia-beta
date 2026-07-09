@@ -139,33 +139,36 @@ function readBinaryBody(req) {
   });
 }
 
-function buildEmailPreview(data) {
+function buildEmailPreview(data, { includeAlerts = false } = {}) {
   const joueur = data.joueur || {};
   const personnage = data.personnage || {};
   const audit = data.audit || {};
-  const eventCount = Number(audit.eventCountCurrent ?? personnage.evenementsParticipes) || 0;
-  const eventXp = Math.min(eventCount * 3, 150);
-  const animationEmail = process.env.ANIMATION_EMAIL || "vidarmazrim@gmail.com";
+  const competencesSpeciales = (data.competencesSpeciales || data.specialCompetences || [])
+    .map((competence) => String(competence?.nom || "").trim())
+    .filter(Boolean);
+  const alertes = [...new Set(Object.entries(audit)
+    .filter(([key]) => /warning|alert/i.test(key))
+    .flatMap(([, value]) => Array.isArray(value) ? value : [value])
+    .map((value) => typeof value === "string" ? value.trim() : "")
+    .filter(Boolean))];
   const lines = [
-    "Nouvelle fiche Arkadia",
+    "Bonjour,",
     "",
-    `A : ${animationEmail}`,
-    `Copie joueur : ${joueur.email || "Non renseignee"}`,
+    `Voici la feuille de personnage de ${personnage.nom || "nom non renseigné"} (${joueur.nom || "joueur non renseigné"}).`,
     "",
-    `Joueur : ${joueur.nom || "Non renseigne"}`,
-    `Personnage : ${personnage.nom || "Non renseigne"}`,
-    `Race : ${personnage.race || "Non renseignee"}`,
-    `Choix racial : ${personnage.raceVariant || "Aucun"}`,
-    `Carriere : ${personnage.carriere || "Non renseignee"}`,
-    `Chances : ${audit.chanceCountCurrent ?? personnage.chancesActuelles ?? "0"} / ${audit.chanceMax ?? personnage.chancesMax ?? "?"}`,
-    `Evenements participes : ${eventCount}`,
-    `XP d'evenements : ${eventXp}${eventCount * 3 > 150 ? " (plafond 150 XP)" : ""}`
+    `Race : ${personnage.race || "Non renseignée"}`,
+    `Carrière : ${personnage.carriere || "Non renseignée"}`,
+    `Ressources en début de partie : ${personnage.ressources || "Non renseignées"}`,
+    "",
+    "Compétences spéciales ajoutées manuellement :",
+    ...(competencesSpeciales.length
+      ? competencesSpeciales.map((nom) => `- ${nom}`)
+      : ["Aucune"])
   ];
 
-  if (audit.eventAbuseWarning || audit.chanceAbuseWarning) {
-    lines.push("", "AVERTISSEMENT ANTI-ABUS");
-    if (audit.eventAbuseWarning) lines.push(audit.eventAbuseWarning);
-    if (audit.chanceAbuseWarning) lines.push(audit.chanceAbuseWarning);
+  if (includeAlerts && alertes.length) {
+    lines.push("", "Alertes réservées à l’animation :");
+    lines.push(...alertes.map((alerte) => `- ${alerte}`));
   }
 
   return lines.join("\n");
@@ -208,13 +211,27 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/email/envoyer") {
       const data = await readJsonBody(req);
       const workbook = await generateCharacterWorkbook(data);
+      const playerData = {
+        ...data,
+        audit: Object.fromEntries(Object.entries(data.audit || {}).map(([key, value]) => (
+          /warning|alert/i.test(key)
+            ? [key, Array.isArray(value) ? [] : ""]
+            : [key, value]
+        )))
+      };
+      const playerWorkbook = data.joueur?.email
+        ? await generateCharacterWorkbook(playerData)
+        : workbook;
       const filename = `arkadia_${(data.personnage?.nom || "personnage").replace(/\s+/g, "_")}.xlsx`;
-      const emailPreview = buildEmailPreview(data);
+      const animationEmailPreview = buildEmailPreview(data, { includeAlerts: true });
+      const playerEmailPreview = buildEmailPreview(data);
       const emailResult = await sendCharacterWorkbookEmail({
         data,
         workbook,
+        playerWorkbook,
         filename,
-        emailPreview
+        animationEmailPreview,
+        playerEmailPreview
       });
 
       sendJson(res, 200, {
@@ -227,7 +244,7 @@ const server = http.createServer(async (req, res) => {
           filename,
           bytes: workbook.length
         },
-        emailPreview
+        emailPreview: playerEmailPreview
       });
       return;
     }

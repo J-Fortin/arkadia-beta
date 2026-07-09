@@ -226,9 +226,26 @@ async function sendResendMail({ to, cc, subject, text, attachment }) {
   return body;
 }
 
-export async function sendCharacterWorkbookEmail({ data, workbook, emailPreview, filename }) {
+export async function sendCharacterWorkbookEmail({
+  data,
+  workbook,
+  playerWorkbook = workbook,
+  animationEmailPreview,
+  playerEmailPreview,
+  emailPreview,
+  filename
+}) {
   const animationEmail = normalizeAddress(process.env.ANIMATION_EMAIL || "vidarmazrim@gmail.com");
   const playerEmail = normalizeAddress(data.joueur?.email);
+  const characterName = data.personnage?.nom || "Personnage";
+  const playerName = data.joueur?.nom || "Joueur";
+  const playMonth = new Intl.DateTimeFormat("fr-CA", {
+    month: "long",
+    timeZone: "America/Toronto"
+  }).format(new Date());
+  const subject = `${characterName} (${playerName}) Fiche de personnage pour play (${playMonth})`;
+  const animationText = animationEmailPreview || emailPreview || "";
+  const playerText = playerEmailPreview || emailPreview || animationText;
 
   if (!resendConfigured() && !smtpConfigured()) {
     return {
@@ -243,58 +260,44 @@ export async function sendCharacterWorkbookEmail({ data, workbook, emailPreview,
     };
   }
 
-  if (resendConfigured()) {
-    try {
-      await sendResendMail({
-        to: animationEmail,
-        cc: playerEmail,
-        subject: `Fiche Arkadia - ${data.personnage?.nom || "Personnage"}`,
-        text: emailPreview,
-        attachment: {
-          filename,
-          content: workbook
-        }
-      });
+  const provider = resendConfigured() ? "resend" : "smtp";
+  const sendMail = provider === "resend" ? sendResendMail : sendSmtpMail;
+  const deliveries = [{
+    label: "animation",
+    to: animationEmail,
+    text: animationText,
+    content: workbook
+  }];
 
-      return {
-        sent: true,
-        mode: "resend",
-        message: "Fiche envoyee par courriel.",
-        recipients: {
-          animation: animationEmail,
-          joueur: playerEmail
-        }
-      };
-    } catch (error) {
-      return {
-        sent: false,
-        mode: "resend-error",
-        message: `Courriel non envoye: ${errorDetail(error)}`,
-        recipients: {
-          animation: animationEmail,
-          joueur: playerEmail
-        }
-      };
-    }
+  if (playerEmail && playerEmail.toLowerCase() !== animationEmail.toLowerCase()) {
+    deliveries.push({
+      label: "joueur",
+      to: playerEmail,
+      text: playerText,
+      content: playerWorkbook
+    });
   }
 
-  try {
-    await sendSmtpMail({
-      to: animationEmail,
-      cc: playerEmail,
-      subject: `Fiche Arkadia - ${data.personnage?.nom || "Personnage"}`,
-      text: emailPreview,
-      attachment: {
-        filename,
-        content: workbook
-      }
-    });
-  } catch (error) {
-    const detail = errorDetail(error);
+  const results = await Promise.allSettled(deliveries.map((delivery) => sendMail({
+    to: delivery.to,
+    subject,
+    text: delivery.text,
+    attachment: {
+      filename,
+      content: delivery.content
+    }
+  })));
+  const failures = results
+    .map((result, index) => result.status === "rejected"
+      ? `${deliveries[index].label}: ${errorDetail(result.reason)}`
+      : "")
+    .filter(Boolean);
+
+  if (failures.length) {
     return {
       sent: false,
-      mode: "smtp-error",
-      message: `Courriel non envoye: ${detail}`,
+      mode: failures.length === deliveries.length ? `${provider}-error` : `${provider}-partial-error`,
+      message: `Courriel non envoyé (${failures.join(" | ")}).`,
       recipients: {
         animation: animationEmail,
         joueur: playerEmail
@@ -304,8 +307,8 @@ export async function sendCharacterWorkbookEmail({ data, workbook, emailPreview,
 
   return {
     sent: true,
-    mode: "smtp",
-    message: "Fiche envoyee par courriel.",
+    mode: provider,
+    message: "Fiche envoyée par courriel.",
     recipients: {
       animation: animationEmail,
       joueur: playerEmail
