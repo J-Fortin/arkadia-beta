@@ -9,6 +9,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   for (let i = 0; i < 5; i++) addSort();
   for (let i = 0; i < 5; i++) addEv();
 
+  initializeArmorBuilder();
   calcXP();
   calcStats();
   updateSelectionGuidance();

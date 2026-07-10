@@ -179,6 +179,7 @@ function competenceNameIs(normalizedName, target){
 
 function calcStats(){
   const armure=parseInt(v('pts-armure'))||0;
+  const maxPvArmure=Number(typeof getArmorRules==='function'&&getArmorRules().maxCombinedPoints)||13;
   const racePv=getRacePvInfo();
   const compPv=getCompetencePvBonus();
   const baseMagic=getCarriereMagicPoints();
@@ -192,7 +193,7 @@ function calcStats(){
     g('sv-magie').textContent=(carriereDonneAccesSorts()||compMagic)?String(magiePts):'—';
     g('sv-magie').title=compMagic?`Base carrière ${baseMagic}, compétences ${compMagic>0?'+':''}${compMagic}`:'';
   }
-  g('alert-pv').classList.toggle('show',total>10);
+  g('alert-pv').classList.toggle('show',total>maxPvArmure);
   updateChanceAbuseWarning();
   if(typeof updateScenarioResources==='function')updateScenarioResources();
 }

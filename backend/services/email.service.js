@@ -10,9 +10,13 @@ function resendConfigured() {
 }
 
 export function getEmailConfigStatus() {
+  const provider = smtpConfigured() ? "smtp" : resendConfigured() ? "resend" : "preview";
+  const fallbackProvider = smtpConfigured() && resendConfigured() ? "resend" : "";
+
   return {
     configured: resendConfigured() || smtpConfigured(),
-    provider: resendConfigured() ? "resend" : smtpConfigured() ? "smtp" : "preview",
+    provider,
+    fallbackProvider,
     resendApiKey: Boolean(process.env.RESEND_API_KEY),
     emailFrom: Boolean(process.env.EMAIL_FROM),
     animationEmail: Boolean(process.env.ANIMATION_EMAIL),
@@ -226,6 +230,28 @@ async function sendResendMail({ to, cc, subject, text, attachment }) {
   return body;
 }
 
+function getEmailProviders() {
+  const providers = [];
+  if (smtpConfigured()) providers.push({ name: "smtp", sendMail: sendSmtpMail });
+  if (resendConfigured()) providers.push({ name: "resend", sendMail: sendResendMail });
+  return providers;
+}
+
+async function sendWithAvailableProviders(delivery, providers, message) {
+  const failures = [];
+
+  for (const provider of providers) {
+    try {
+      await provider.sendMail(message);
+      return provider.name;
+    } catch (error) {
+      failures.push(`${provider.name}: ${errorDetail(error)}`);
+    }
+  }
+
+  throw new Error(`${delivery.label}: ${failures.join(" | ")}`);
+}
+
 export async function sendCharacterWorkbookEmail({
   data,
   workbook,
@@ -260,8 +286,7 @@ export async function sendCharacterWorkbookEmail({
     };
   }
 
-  const provider = resendConfigured() ? "resend" : "smtp";
-  const sendMail = provider === "resend" ? sendResendMail : sendSmtpMail;
+  const providers = getEmailProviders();
   const deliveries = [{
     label: "animation",
     to: animationEmail,
@@ -278,7 +303,7 @@ export async function sendCharacterWorkbookEmail({
     });
   }
 
-  const results = await Promise.allSettled(deliveries.map((delivery) => sendMail({
+  const results = await Promise.allSettled(deliveries.map((delivery) => sendWithAvailableProviders(delivery, providers, {
     to: delivery.to,
     subject,
     text: delivery.text,
@@ -288,15 +313,17 @@ export async function sendCharacterWorkbookEmail({
     }
   })));
   const failures = results
-    .map((result, index) => result.status === "rejected"
-      ? `${deliveries[index].label}: ${errorDetail(result.reason)}`
-      : "")
+    .map((result) => result.status === "rejected" ? errorDetail(result.reason) : "")
     .filter(Boolean);
+  const usedProviders = [...new Set(results
+    .map((result) => result.status === "fulfilled" ? result.value : "")
+    .filter(Boolean))];
+  const providerMode = usedProviders.length ? usedProviders.join("+") : providers.map((provider) => provider.name).join("+");
 
   if (failures.length) {
     return {
       sent: false,
-      mode: failures.length === deliveries.length ? `${provider}-error` : `${provider}-partial-error`,
+      mode: failures.length === deliveries.length ? `${providerMode}-error` : `${providerMode}-partial-error`,
       message: `Courriel non envoyé (${failures.join(" | ")}).`,
       recipients: {
         animation: animationEmail,
@@ -307,7 +334,7 @@ export async function sendCharacterWorkbookEmail({
 
   return {
     sent: true,
-    mode: provider,
+    mode: providerMode,
     message: "Fiche envoyée par courriel.",
     recipients: {
       animation: animationEmail,

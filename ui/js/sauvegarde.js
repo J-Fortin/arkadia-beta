@@ -6,7 +6,7 @@ function collecterFiche(){
     .filter(Boolean);
   const data={v:'2.8',
     joueur:{nom:v('j-nom'),naiss:v('j-naiss'),premier:v('j-premier'),tel:v('j-tel'),email:v('j-email'),allergies:v('j-allergies'),u1nom:v('u1-nom'),u1tel:v('u1-tel'),u2nom:v('u2-nom'),u2tel:v('u2-tel')},
-    personnage:{nom:v('p-nom'),premier:v('p-premier'),race:v('race'),raceVariant:v('race-variant'),carriere:v('carriere'),moralite:v('moralite'),religion:v('religion'),religion2:v('religion-2'),ecole:v('ecole'),ecole2:v('ecole-2'),maison:v('maison'),noblesse:v('noblesse'),ptsArmure:v('pts-armure'),typeArmure:v('type-armure'),chancesActuelles:v('chances-actuelles'),chancesMax:getRaceChanceMax(),faiblesses:v('faiblesses'),immunites:v('immunites'),evenementsParticipes:v('xp-total'),xpEvenements:getEventXpUsed(),xpTotal:v('xp-total'),ressources:v('ressources'),titres:titresEtNotes,notes:titresEtNotes,bg:v('bg')},
+    personnage:{nom:v('p-nom'),premier:v('p-premier'),race:v('race'),raceVariant:v('race-variant'),carriere:v('carriere'),moralite:v('moralite'),religion:v('religion'),religion2:v('religion-2'),ecole:v('ecole'),ecole2:v('ecole-2'),maison:v('maison'),noblesse:v('noblesse'),ptsArmure:v('pts-armure'),typeArmure:v('type-armure'),piecesArmure:collectArmorPieces(),chancesActuelles:v('chances-actuelles'),chancesMax:getRaceChanceMax(),faiblesses:v('faiblesses'),immunites:v('immunites'),evenementsParticipes:v('xp-total'),xpEvenements:getEventXpUsed(),xpTotal:v('xp-total'),ressources:v('ressources'),titres:titresEtNotes,notes:titresEtNotes,bg:v('bg')},
     audit:{eventCountBaseline,eventCountCurrent:parseInt(v('xp-total'))||0,eventAbuseWarning:getEventAbuseWarning(),chanceCountBaseline,chanceCountCurrent:parseInt(v('chances-actuelles'))||0,chanceMax:getRaceChanceMax(),chanceAbuseWarning:getChanceAbuseWarning(),alerts:alertesVisibles},
     competences:[],sorts:[],competencesSpeciales:[],sortsSpeciaux:[],evenements:[]
   };
@@ -139,7 +139,7 @@ function charger(d){
     fallbackEcole=p.ecole || '';
     sv('ecole',p.ecole);sv('ecole-2',p.ecole2 || p.ecoleSecondaire || '');onEcole();
     sv('maison',p.maison);sv('noblesse',p.noblesse);
-    sv('pts-armure',p.ptsArmure);sv('type-armure',p.typeArmure);
+    loadArmorPieces(p.piecesArmure||{});
     sv('chances-actuelles',p.chancesActuelles ?? getRaceChanceMax());
     updateChanceLimits(false);
     chanceCountBaseline=parseInt(v('chances-actuelles'))||0;

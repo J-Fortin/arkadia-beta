@@ -21,6 +21,43 @@ export const valueAliases = {
 
 export const defaultRaceChances = 3;
 
+export const armorRules = {
+  maxCombinedPoints: 13,
+  bodyZones: [
+    { id: "torse", label: "Plastron (avant et arrière)", visual: "torso" },
+    { id: "brasGauche", label: "Bras gauche", visual: "arm-left" },
+    { id: "brasDroit", label: "Bras droit", visual: "arm-right" },
+    { id: "jambeGauche", label: "Jambe gauche", visual: "leg-left" },
+    { id: "jambeDroite", label: "Jambe droite", visual: "leg-right" }
+  ],
+  materials: [
+    { id: "cuir-souple", label: "Cuir souple ou matelassé", incomplete: 1, complete: 2, metallic: false, color: "#9b7653" },
+    { id: "cuir-rigide", label: "Cuir rigide ou brigandine", incomplete: 2, complete: 3, metallic: false, color: "#70452b" },
+    { id: "metal-souple", label: "Métal souple (mailles / lamellaire)", incomplete: 3, complete: 4, metallic: true, color: "#818a91" },
+    { id: "metal-rigide", label: "Métal rigide (plaques / plates)", incomplete: 4, complete: 5, metallic: true, color: "#adb5bd" },
+    { id: "insolite-souple", label: "Insolite souple", incomplete: 1, complete: 2, metallic: false, color: "#8f789e" },
+    { id: "insolite-rigide", label: "Insolite rigide", incomplete: 2, complete: 3, metallic: false, color: "#725d80" }
+  ],
+  hybrid: {
+    label: "Hybride (disparate ou rapiécée)",
+    incomplete: 2,
+    complete: 3,
+    rigidTorsoBonus: 1
+  },
+  helmets: [
+    { id: "non-metallique", label: "Non métallique ou cuir rigide", points: 1, metallic: false, color: "#846247" },
+    { id: "coiffe-mailles", label: "Coiffe en mailles", points: 1, metallic: true, throatProtection: true, color: "#818a91" },
+    { id: "metal-rigide", label: "Métal rigide", points: 2, metallic: true, minimumArmorPermission: 3, color: "#adb5bd" }
+  ],
+  gorgets: [
+    { id: "non-metallique", label: "Non métallique", metallic: false, throatProtection: false, color: "#846247" },
+    { id: "cuir-rigide", label: "Cuir rigide", metallic: false, throatProtection: false, color: "#70452b" },
+    { id: "semi-metallique", label: "Semi-métallique (plaqué / clouté)", metallic: true, throatProtection: true, color: "#92999f" },
+    { id: "metal-souple", label: "Métallique souple (mailles / lamellaire)", metallic: true, throatProtection: true, color: "#818a91" },
+    { id: "metal-rigide", label: "Métallique rigide (bandes / plates)", metallic: true, throatProtection: true, color: "#adb5bd" }
+  ]
+};
+
 export const raceChanceOverrides = {
   morgull: 4
 };
@@ -473,6 +510,7 @@ export const competenceRules = {
 export function getClientCodexRules() {
   return {
     magic: magicRules,
-    competences: competenceRules
+    competences: competenceRules,
+    armor: armorRules
   };
 }

@@ -145,14 +145,60 @@
   <div class="stitle">III · Caractéristiques</div>
   <div class="stat-boxes">
     <div class="stat-box"><span class="slabel">Points de Vie</span><div class="sval" id="sv-pv">—</div></div>
-    <div class="stat-box"><span class="slabel">Points d'Armure</span><input id="pts-armure" type="number" min="0" max="10" value="0" oninput="calcStats()"></div>
+    <div class="stat-box"><span class="slabel">Points d'Armure</span><input id="pts-armure" class="computed" type="number" min="0" max="13" value="0" readonly></div>
     <div class="stat-box"><span class="slabel">Points de Magie</span><div class="sval" id="sv-magie">—</div></div>
     <div class="stat-box"><span class="slabel">Chances / Saison</span><input id="chances-actuelles" type="number" min="0" value="0" oninput="onChanceChange()"><div class="field-hint" id="sv-chances">max —</div></div>
   </div>
-  <div id="alert-pv" class="alert">⚠ PV + Armure ne peut dépasser 10 points (sauf transformation spéciale).</div>
+  <div id="alert-pv" class="alert">⚠ PV + Armure ne peut dépasser 13 points (sauf transformation spéciale).</div>
+  <div id="alert-armure" class="alert"></div>
   <div id="alert-chances-abus" class="alert"></div>
+
+  <div class="armor-builder">
+    <div class="armor-controls">
+      <p class="note-hint">Choisissez les pièces d’armure portées. Le plastron est obligatoire pour donner des PA; le casque est calculé séparément. Les bonus spéciaux et l’armure épique doivent être ajoutés dans les compétences spéciales de l’animation, pas ici.</p>
+      <table class="armor-table">
+        <thead><tr><th>Pièce</th><th>Type</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr id="armor-row-torso">
+            <td>Plastron</td>
+            <td><select class="armor-piece-select" data-armor-zone="torse" onchange="updateArmorSelection()"></select></td>
+            <td>Étape 1 : obligatoire pour recevoir des points d’armure.</td>
+          </tr>
+          <tr id="armor-row-arms">
+            <td>Bras</td>
+            <td><select id="armor-arms" class="armor-piece-group-select" data-armor-zone-group="brasGauche,brasDroit" onchange="updateArmorSelection()"></select></td>
+            <td>Étape 2 : disponible après le plastron.</td>
+          </tr>
+          <tr id="armor-row-legs">
+            <td>Jambes</td>
+            <td><select id="armor-legs" class="armor-piece-group-select" data-armor-zone-group="jambeGauche,jambeDroite" onchange="updateArmorSelection()"></select></td>
+            <td>Étape 2 : disponible après le plastron.</td>
+          </tr>
+          <tr id="armor-helmet-row" hidden>
+            <td>Casque</td>
+            <td><select id="armor-helmet" onchange="updateArmorSelection()"></select></td>
+            <td>Bonus séparé; le casque métal rigide exige une carrière permettant 3 PA et +.</td>
+          </tr>
+          <tr id="armor-gorget-row" hidden>
+            <td>Gorget / couvre-gorge</td>
+            <td><select id="armor-gorget" onchange="updateArmorSelection()"></select></td>
+            <td>Ne donne pas de PA; peut protéger contre Égorgement selon le type.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="armor-optional-choice">
+        <label class="armor-check"><input id="armor-helmet-enabled" type="checkbox" onchange="toggleArmorHelmet()"> Ajouter un casque</label>
+        <label class="armor-check"><input id="armor-gorget-enabled" type="checkbox" onchange="toggleArmorGorget()"> Ajouter un gorget / couvre-gorge</label>
+      </div>
+      <div class="armor-details">
+        <div id="armor-total-detail" class="armor-total-detail">0 PA armure + 0 PA casque = 0 PA</div>
+        <div id="armor-throat-detail" class="armor-throat-detail">Égorgement : aucune protection métallique ou semi-métallique sélectionnée.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="row">
-    <div class="col"><label>Type d'armure portée</label><input type="text" id="type-armure" placeholder="Ex. métal rigide torse + bras"></div>
+    <div class="col"><label>Résumé de l'armure portée</label><input type="text" id="type-armure" class="computed" readonly></div>
     <div class="col"><label>Background / Notes personnage</label><input type="text" id="bg" placeholder="Courte description, lien bg complet..."></div>
   </div>
 
@@ -164,7 +210,6 @@
     <div class="col"><label>XPs dépensés</label><input type="number" id="xp-dep" class="computed" readonly></div>
     <div class="col"><label>XPs disponibles</label><input type="number" id="xp-dispo" class="computed" readonly></div>
   </div>
-  <div id="alert-evenements-abus" class="alert"></div>
   <div class="xp-wrap">
     <div class="xp-track"><div class="xp-fill" id="xp-bar"></div></div>
     <div class="xp-lbls"><span id="xp-lbl-d">0 dépensés</span><span id="xp-lbl-t">0 total</span></div>
@@ -255,6 +300,7 @@
 <script src="ressourcesEtNotes/ressources.js"></script>
 <script src="ressourcesEtNotes/specials.js"></script>
 <script src="ressourcesEtNotes/evenements.js"></script>
+<script src="caracteristiques/armure.js"></script>
 <script src="caracteristiques/calculs.js"></script>
 <script src="js/sauvegarde.js"></script>
 <script src="js/api.js"></script>

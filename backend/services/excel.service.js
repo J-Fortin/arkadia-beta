@@ -469,6 +469,9 @@ function buildSheet(data) {
     ["École de magie secondaire", personnage.ecole2],
     ["Noblesse", personnage.noblesse],
     ["Maison / Titre", personnage.maison],
+    ["Points d'armure", personnage.ptsArmure],
+    ["Type d'armure", personnage.typeArmure],
+    ["Pièces d'armure", personnage.piecesArmure ? JSON.stringify(personnage.piecesArmure) : ""],
     ["Chances actuelles", personnage.chancesActuelles],
     ["Chances maximum", personnage.chancesMax],
     ["Faiblesses", personnage.faiblesses],
@@ -614,6 +617,10 @@ export async function parseCharacterWorkbook(buffer) {
     "École de magie secondaire": "ecole2",
     "Noblesse": "noblesse",
     "Maison / Titre": "maison",
+    "Points d'armure": "ptsArmure",
+    "Type d'armure": "typeArmure",
+    "Pièces d'armure": "piecesArmureJson",
+    "Bonus d'armure": "bonusArmure",
     "Chances actuelles": "chancesActuelles",
     "Chances maximum": "chancesMax",
     "Faiblesses": "faiblesses",
@@ -623,6 +630,15 @@ export async function parseCharacterWorkbook(buffer) {
     "Notes": "notes",
     "Background": "bg"
   }, data.personnage);
+
+  if (data.personnage.piecesArmureJson) {
+    try {
+      data.personnage.piecesArmure = JSON.parse(data.personnage.piecesArmureJson);
+    } catch {
+      data.personnage.piecesArmure = {};
+    }
+  }
+  delete data.personnage.piecesArmureJson;
 
   readLabelBlock(rows, sections.get("XP"), sectionEnd("XP"), {
     "Événements participés": "evenementsParticipes",

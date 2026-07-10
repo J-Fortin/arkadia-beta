@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 import { getCompetenceMeta, getDatabaseOptions } from "../backend/services/database.service.js";
+import { armorRules } from "../backend/services/codex-rules.js";
 import { generateCharacterWorkbook, parseCharacterWorkbook } from "../backend/services/excel.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -58,6 +60,13 @@ function hasFirstFreeRule(options, carriere, expected) {
 
 const options = await getDatabaseOptions();
 const meta = await getCompetenceMeta();
+const armorContext = vm.createContext({});
+vm.runInContext(fs.readFileSync(path.join(root, "ui/caracteristiques/armure.js"), "utf8"), armorContext, { filename: "ui/caracteristiques/armure.js" });
+const calculateArmorValues = armorContext.calculateArmorValues;
+
+function armorResult(pieces) {
+  return calculateArmorValues(armorRules, pieces);
+}
 
 assert(fs.existsSync(path.join(root, "database/source/Fiche-de-joueur-V1.3.xlsx")), "Le fichier Excel source V1.3 est manquant.");
 assert(!fs.existsSync(path.join(root, "ui/js/data.js")), "L'ancienne base statique ui/js/data.js existe encore.");
@@ -65,6 +74,8 @@ assert(!fs.existsSync(path.join(root, "ui/js/data.js")), "L'ancienne base statiq
 const calculsJs = fs.readFileSync(path.join(root, "ui/caracteristiques/calculs.js"), "utf8");
 const sauvegardeJs = fs.readFileSync(path.join(root, "ui/js/sauvegarde.js"), "utf8");
 const ressourcesJs = fs.readFileSync(path.join(root, "ui/ressourcesEtNotes/ressources.js"), "utf8");
+const armureJs = fs.readFileSync(path.join(root, "ui/caracteristiques/armure.js"), "utf8");
+const emailServiceJs = fs.readFileSync(path.join(root, "backend/services/email.service.js"), "utf8");
 const apiJs = fs.readFileSync(path.join(root, "ui/js/api.js"), "utf8");
 const guidanceJs = fs.readFileSync(path.join(root, "ui/js/guidance.js"), "utf8");
 const validationsJs = fs.readFileSync(path.join(root, "ui/js/validations.js"), "utf8");
@@ -72,12 +83,26 @@ const html = fs.readFileSync(path.join(root, "ui/arkadia_beta_1.2.html"), "utf8"
 assert(calculsJs.includes("const MAX_XP_EVENEMENTS = 150"), "La limite de 150 XP d'evenements doit etre declaree.");
 assert(calculsJs.includes("Math.min(getEventXpRaw(),MAX_XP_EVENEMENTS)"), "Les XP d'evenements doivent etre plafonnes a 150.");
 assert(sauvegardeJs.includes("xpEvenements:getEventXpUsed()"), "L'export doit sauvegarder les XP d'evenements plafonnes.");
+assert(!html.includes("alert-evenements-abus"), "La section Historique des evenements ne doit plus afficher d'alerte.");
 assert(html.includes("special-comp-tbody") && html.includes("special-sort-tbody"), "La section VI doit exposer les ajouts speciaux de l'animation.");
 assert(calculsJs.includes("#special-comp-tbody") && calculsJs.includes("#special-sort-tbody"), "Les XP des ajouts speciaux doivent etre inclus dans le total depense.");
 assert(html.includes("ressourcesEtNotes/ressources.js"), "Le calcul automatique des ressources doit etre charge.");
 assert(html.includes('id="ressources"') && html.includes("readonly"), "Les ressources par scenario doivent etre un champ calcule.");
 assert(calculsJs.includes("updateScenarioResources"), "Les ressources doivent etre recalculees avec les stats.");
 assert(ressourcesJs.includes("updateScenarioResources") && ressourcesJs.includes("touche a tout"), "Le calcul des ressources doit gerer les competences et Touche a tout.");
+assert(typeof calculateArmorValues === "function", "Le calculateur d'armure doit etre testable.");
+assert(options.rules?.armor?.maxCombinedPoints === 13, "Le maximum PV + armure doit etre expose a 13.");
+assert(html.includes('id="armor-helmet-enabled"') && html.includes('id="armor-gorget-enabled"'), "La fiche doit exposer le casque et le gorget via des boutons a cocher.");
+assert(html.indexOf('id="armor-helmet-enabled"') > html.indexOf('class="armor-table"'), "Les boutons casque/gorget doivent etre sous le tableau.");
+assert(html.includes('class="armor-table"'), "La section armure doit etre affichee comme un tableau.");
+assert(html.includes('id="armor-row-torso"') && html.includes('id="armor-row-arms"') && html.includes('id="armor-row-legs"'), "La section armure doit guider l'ordre plastron, puis bras/jambes.");
+assert(!html.includes('id="armor-epic"') && !html.includes('id="bonus-armure"'), "La section armure ne doit pas calculer l'epique ni les bonus speciaux.");
+assert(!html.includes("<svg") && !html.includes("armor-visual"), "L'image d'armure ne doit plus etre affichee.");
+assert(armureJs.includes("calculateArmorValues"), "La logique d'armure doit etre isolee dans un calculateur.");
+assert(armureJs.includes("toggleArmorHelmet") && armureJs.includes("toggleArmorGorget"), "Les boutons a cocher casque/gorget doivent etre branches cote frontend.");
+assert(armureJs.includes("updateArmorOrderState"), "La section armure doit guider le choix du plastron avant les autres pieces.");
+assert(emailServiceJs.includes('label: "animation"') && emailServiceJs.includes('label: "joueur"'), "L'envoi courriel doit preparer une copie animation et une copie joueur.");
+assert(emailServiceJs.includes("sendWithAvailableProviders") && emailServiceJs.indexOf('name: "smtp"') < emailServiceJs.indexOf('name: "resend"'), "L'envoi courriel doit utiliser SMTP avant Resend lorsque les deux sont configures.");
 assert(apiJs.includes("spellSchoolsMeetRequirements"), "Les exigences des ecoles de magie doivent etre verifiables cote frontend.");
 assert(guidanceJs.includes("spellSchoolsMeetRequirements"), "Le guidage doit attendre toutes les ecoles requises.");
 assert(validationsJs.includes("validerEcolesMagie"), "L'export doit valider les ecoles de magie.");
@@ -123,6 +148,49 @@ assert(hasFirstFreeRule(options, "charlatan", "lecture et ecriture"), "Charlatan
 assert(hasFirstFreeRule(options, "scribe", "lecture et ecriture"), "Scribe doit avoir le 1er Lecture et ecriture gratuit.");
 assert(hasFirstFreeRule(options, "traqueur", "lancer meurtrier"), "Traqueur doit avoir le 1er achat de Lancer meurtrier gratuit.");
 
+const fullPlateZones = Object.fromEntries(armorRules.bodyZones.map((zone) => [zone.id, "metal-rigide"]));
+let armor = armorResult({ zones: fullPlateZones, helmet: "metal-rigide", gorget: "metal-rigide", epic: true });
+assert(armor.bodyPoints === 5, "Une armure de metal rigide complete doit donner 5 PA.");
+assert(armor.helmetPoints === 2, "Un casque de metal rigide doit donner 2 PA.");
+assert(armor.epicPoints === 0 && armor.bonus === 0, "L'armure epique et les bonus speciaux ne doivent pas etre calcules dans la section armure.");
+assert(armor.total === 7, "Full plate + casque doit donner 7 PA dans la section armure.");
+assert(armor.classification.includes("Armure complète") && armor.classification.includes("Métal rigide"), "Le resume d'armure doit indiquer complete/incomplete et le materiau.");
+
+armor = armorResult({ zones: { torse: "metal-rigide" }, helmet: "", gorget: "", epic: false });
+assert(armor.bodyPoints === 4 && armor.complete === false, "Une armure de metal rigide incomplete doit donner 4 PA.");
+assert(armor.classification.includes("Armure incomplète") && armor.classification.includes("Métal rigide"), "Le resume d'armure incomplete doit indiquer le materiau.");
+
+armor = armorResult({ zones: { brasGauche: "metal-rigide", brasDroit: "metal-rigide" }, helmet: "metal-rigide", gorget: "metal-rigide", epic: true });
+assert(armor.total === 0 && armor.hasTorso === false, "Sans plastron, les pieces d'armure et le casque ne doivent donner aucun PA.");
+
+armor = armorResult({
+  zones: {
+    torse: "metal-rigide",
+    brasGauche: "cuir-souple",
+    brasDroit: "cuir-souple",
+    jambeGauche: "cuir-souple",
+    jambeDroite: "cuir-souple"
+  },
+  helmet: "",
+  gorget: "",
+  epic: false
+});
+assert(armor.bodyPoints === 4 && armor.classification.includes("Hybride"), "Une armure hybride complete avec plastron rigide doit donner 4 PA.");
+
+armor = armorResult({
+  zones: {
+    torse: "metal-souple",
+    brasGauche: "metal-rigide",
+    brasDroit: "metal-rigide",
+    jambeGauche: "metal-rigide",
+    jambeDroite: "metal-rigide"
+  },
+  helmet: "",
+  gorget: "semi-metallique",
+  epic: false
+});
+assert(armor.bodyPoints === 4 && armor.gorget?.throatProtection === true, "Les pieces metalliques compatibles doivent suivre le plastron et le gorget semi-metallique doit proteger la gorge.");
+
 const sample = {
   joueur: {
     nom: "Verification Joueur",
@@ -138,6 +206,9 @@ const sample = {
     race: "humain",
     carriere: "charlatan",
     moralite: "balancee",
+    ptsArmure: "7",
+    typeArmure: "Metal rigide complet",
+    piecesArmure: { zones: fullPlateZones, helmet: "metal-rigide", gorget: "metal-rigide" },
     chancesActuelles: "3",
     chancesMax: "3"
   },
@@ -160,5 +231,10 @@ assert(parsed.competencesSpeciales?.[0]?.count === sample.competencesSpeciales[0
 assert(parsed.competencesSpeciales?.[0]?.xp === sample.competencesSpeciales[0].xp, "L'import Excel doit restaurer les XP des competences speciales.");
 assert(parsed.sortsSpeciaux?.[0]?.nom === sample.sortsSpeciaux[0].nom, "L'import Excel doit restaurer les sorts speciaux.");
 assert(parsed.sortsSpeciaux?.[0]?.note === sample.sortsSpeciaux[0].note, "L'import Excel doit restaurer les notes des sorts speciaux.");
+assert(parsed.personnage.ptsArmure === sample.personnage.ptsArmure, "L'import Excel doit restaurer les points d'armure.");
+assert(parsed.personnage.piecesArmure?.zones?.torse === "metal-rigide", "L'import Excel doit restaurer les pieces d'armure.");
+assert(parsed.personnage.piecesArmure?.helmet === "metal-rigide", "L'import Excel doit restaurer le casque.");
+assert(parsed.personnage.piecesArmure?.gorget === "metal-rigide", "L'import Excel doit restaurer le gorget.");
+assert(parsed.personnage.bonusArmure === undefined, "L'export Excel ne doit plus ecrire de bonus d'armure.");
 
 console.log("Verification Arkadia OK");

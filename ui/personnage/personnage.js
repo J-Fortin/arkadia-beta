@@ -116,6 +116,7 @@ function onCarriere(){
     g('sv-magie').textContent='—';
     g('card-sorts').style.display='none';
     validerCombinaisonRaceCarriere();
+    if(typeof refreshArmorBuilder==='function')refreshArmorBuilder();
     updateCompetences(); updateEcoleSelector(); refreshAllSortRows();
     updateSelectionGuidance();
     return;
@@ -129,6 +130,7 @@ function onCarriere(){
   g('sv-magie').textContent=hasSortAccess?magiePts:'—';
   g('card-sorts').style.display=hasSortAccess?'block':'none';
   validerCombinaisonRaceCarriere();
+  if(typeof refreshArmorBuilder==='function')refreshArmorBuilder();
   calcStats(); updateCompetences(); updateEcoleSelector(); refreshAllSortRows();
   updateSelectionGuidance();
 }
