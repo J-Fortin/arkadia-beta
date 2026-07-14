@@ -6,6 +6,7 @@ import {
   canonicalTextAliases,
   codexCumulableCompetences,
   defaultRaceChances,
+  excludedRaceValues,
   excludedCompetenceNames,
   getClientCodexRules,
   mixedCareerSources,
@@ -187,6 +188,16 @@ function uniqueByKey(items, keyFn) {
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
+  });
+}
+
+function isExcludedRaceValue(value) {
+  return excludedRaceValues.has(String(value || ""));
+}
+
+function removeExcludedRaceEntries(map) {
+  excludedRaceValues.forEach((race) => {
+    delete map[race];
   });
 }
 
@@ -574,14 +585,16 @@ export async function getDatabaseOptions() {
       const isBonus = Boolean(bonusTarget);
       const isRaceSource = raceValueSet.has(targetValue);
       const isCareerSource = carriereValueSet.has(targetValue);
-      const gratuit = isBonus && xp === 0;
+      const racialFree = isRaceSource && isBonus;
+      const gratuit = racialFree || (isBonus && xp === 0);
       const baseXp = baseXpByName.get(normalizedCompetenceName(nom)) ?? xp;
 
       if (!isNameValue(nom)) continue;
+      if (isRaceSource && isExcludedRaceValue(targetValue)) continue;
 
       const option = {
         nom,
-        xp,
+        xp: gratuit ? 0 : xp,
         baseXp,
         cat: "Générale",
         cumulableMax: getCodexCumulableMax(nom) || cumulableMax,
@@ -608,16 +621,18 @@ export async function getDatabaseOptions() {
       const baseXp = baseXpByName.get(normalizedCompetenceName(nom));
 
       if (!isNameValue(race) || !isNameValue(nom) || baseXp === undefined) continue;
+      if (isExcludedRaceValue(optionValue(race))) continue;
 
-      const xp = Math.max(0, baseXp + xpDelta);
+      const racialFree = xpDelta < 0;
+      const xp = racialFree ? 0 : Math.max(0, baseXp + xpDelta);
       competences.push({
         nom,
         xp,
         baseXp,
         cat: "Raciale",
         race: optionValue(race),
-        gratuit: xp === 0,
-        note: xp === 0 ? "" : (xpDelta < 0 ? "rabais racial" : ""),
+        gratuit: racialFree || xp === 0,
+        note: racialFree || xp === 0 ? "" : (xpDelta < 0 ? "rabais racial" : ""),
         cumulableMax: getCodexCumulableMax(nom)
       });
     }
@@ -653,21 +668,6 @@ export async function getDatabaseOptions() {
     .map((carriere) => carriere.value);
   carrieresPermisesParRace.gitan = uniqueCareerValues.filter((value) => !["barbare", "berserker"].includes(value));
   carrieresPermisesParRace.morgull = uniqueCareerValues.filter((value) => value !== "totem");
-  carrieresPermisesParRace.norde = [
-    "barbare",
-    "berserker",
-    "traqueur",
-    "maraudeur",
-    "maitre-runes",
-    "seigneur-guerre",
-    "chaman",
-    "druide",
-    "animiste",
-    "ermite",
-    "gardien-mystique",
-    "rodeur",
-    "totem"
-  ];
   if (carrieresPermisesParRace.corvus && !carrieresPermisesParRace.corvus.includes("charlatan")) {
     carrieresPermisesParRace.corvus.push("charlatan");
   }
@@ -680,8 +680,16 @@ export async function getDatabaseOptions() {
   immunitesParRace.saurien = (immunitesParRace.saurien || [])
     .filter((effect) => !variableElementalEffects.has(effect));
 
+  [
+    carrieresPermisesParRace,
+    moralitesPermisesParRace,
+    divinitesPermisesParRace,
+    faiblessesParRace,
+    immunitesParRace
+  ].forEach(removeExcludedRaceEntries);
+
   return {
-    races: uniqueOptions(races),
+    races: uniqueOptions(races).filter((option) => !isExcludedRaceValue(option.value)),
     carrieres: uniqueOptions(carrieres),
     religions: uniqueOptions([
       ...religions.filter((option) => !hiddenDivinities.has(option.value)),
@@ -702,7 +710,9 @@ export async function getDatabaseOptions() {
     immunitesParRace,
     immunitesParCarriere,
     immunitesParCompetence,
-    competences: uniqueByKey(competences.filter((option) => !isExcludedCompetence(option.nom)), (option) => [
+    competences: uniqueByKey(competences.filter((option) => {
+      return !isExcludedCompetence(option.nom) && !isExcludedRaceValue(option.race);
+    }), (option) => [
       option.cat,
       option.nom,
       option.race || "",
@@ -763,6 +773,11 @@ export async function getCompetenceMeta() {
     frequence: "1 fois",
     cumulableMax: getCodexCumulableMax("Magie puissante")
   };
+
+  Object.values(meta).forEach((entry) => {
+    const maxPurchases = Number(entry.cumulableMax) || 1;
+    if (maxPurchases <= 1 && !entry.frequence) entry.frequence = "À volonté";
+  });
 
   return meta;
 }

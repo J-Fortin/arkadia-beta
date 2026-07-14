@@ -24,7 +24,28 @@ function getSelectedCarriereDatabaseOption(){
   return getSelectedCarriere();
 }
 
-function getCarriereMagicPoints(carriere=getSelectedCarriere()){
+const RACE_MAGIC_BONUSES={
+  'elfe-sanguinaire':10
+};
+
+function normalizeStateKey(value){
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function hasSelectedFerveurMagique(){
+  return selectedCompetenceNames().some(name=>{
+    const normalized=normalizeStateKey(name).replace(/^touche a tout /,'');
+    return normalized==='ferveur magique' || normalized==='ferveur magic';
+  });
+}
+
+function getBaseCarriereMagicPoints(carriere=getSelectedCarriere()){
   return Number(carriere?.ptsMagie)||0;
 }
 
@@ -32,15 +53,28 @@ function carriereEstSemiMagique(carriere=getSelectedCarriere()){
   return Boolean(carriere?.semiMagique);
 }
 
+function carriereHasNativeMagicAccess(carriere=getSelectedCarriere()){
+  return Boolean(carriere && (getBaseCarriereMagicPoints(carriere)>0 || Number(carriere.maxMagique)>0));
+}
+
+function getRaceMagicBonus(carriere=getSelectedCarriere()){
+  if(!carriereHasNativeMagicAccess(carriere))return 0;
+  return RACE_MAGIC_BONUSES[v('race')] || 0;
+}
+
+function getCarriereMagicPoints(carriere=getSelectedCarriere()){
+  return getBaseCarriereMagicPoints(carriere)+getRaceMagicBonus(carriere);
+}
+
 function carriereDonneAccesSorts(carriere=getSelectedCarriere()){
-  return Boolean(carriere && (getCarriereMagicPoints(carriere)>0 || Number(carriere.maxMagique)>0));
+  return carriereHasNativeMagicAccess(carriere);
 }
 
 function getCarriereSortMaxLevel(carriere=getSelectedCarriere()){
   if(!carriereDonneAccesSorts(carriere))return 0;
   const databaseMax=Number(carriere?.maxMagique)||0;
-  if(databaseMax>0)return databaseMax;
-  return carriereEstSemiMagique(carriere)?5:10;
+  const baseMax=databaseMax>0?databaseMax:(carriereEstSemiMagique(carriere)?5:10);
+  return hasSelectedFerveurMagique()?baseMax+1:baseMax;
 }
 
 // ===================== FAIBLESSES / IMMUNITÉS =====================

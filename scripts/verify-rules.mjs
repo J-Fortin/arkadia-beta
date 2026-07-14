@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 import { getCompetenceMeta, getDatabaseOptions } from "../backend/services/database.service.js";
-import { armorRules } from "../backend/services/codex-rules.js";
+import { armorRules, excludedRaceValues } from "../backend/services/codex-rules.js";
 import { generateCharacterWorkbook, parseCharacterWorkbook } from "../backend/services/excel.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -58,6 +58,30 @@ function hasFirstFreeRule(options, carriere, expected) {
   });
 }
 
+function racialCompetence(options, race, expected) {
+  const target = normalizeCompetenceKey(expected);
+
+  return (options.competences || []).find((option) => {
+    return option.race === race && normalizeCompetenceKey(option.nom) === target;
+  });
+}
+
+function assertRacialFree(options, race, expected, baseXp) {
+  const option = racialCompetence(options, race, expected);
+
+  assert(option, `La competence raciale ${expected} doit exister pour ${race}.`);
+  assert(option.gratuit === true && Number(option.xp) === 0, `La competence raciale ${expected} doit etre gratuite pour ${race}.`);
+  assert(Number(option.baseXp) === baseXp, `La competence raciale ${expected} doit conserver son cout normal (${baseXp}) pour les achats suivants.`);
+}
+
+function competenceMetaEntry(meta, expected) {
+  const target = normalizeCompetenceKey(expected);
+
+  return Object.entries(meta || {}).find(([key]) => {
+    return normalizeCompetenceKey(key.split("|").at(-1)) === target;
+  })?.[1];
+}
+
 const options = await getDatabaseOptions();
 const meta = await getCompetenceMeta();
 const armorContext = vm.createContext({});
@@ -74,18 +98,177 @@ assert(!fs.existsSync(path.join(root, "ui/js/data.js")), "L'ancienne base statiq
 const calculsJs = fs.readFileSync(path.join(root, "ui/caracteristiques/calculs.js"), "utf8");
 const sauvegardeJs = fs.readFileSync(path.join(root, "ui/js/sauvegarde.js"), "utf8");
 const ressourcesJs = fs.readFileSync(path.join(root, "ui/ressourcesEtNotes/ressources.js"), "utf8");
+const specialsJs = fs.readFileSync(path.join(root, "ui/ressourcesEtNotes/specials.js"), "utf8");
+const competencesJs = fs.readFileSync(path.join(root, "ui/competences/competences.js"), "utf8");
 const armureJs = fs.readFileSync(path.join(root, "ui/caracteristiques/armure.js"), "utf8");
 const emailServiceJs = fs.readFileSync(path.join(root, "backend/services/email.service.js"), "utf8");
 const apiJs = fs.readFileSync(path.join(root, "ui/js/api.js"), "utf8");
+const stateJs = fs.readFileSync(path.join(root, "ui/js/state.js"), "utf8");
 const guidanceJs = fs.readFileSync(path.join(root, "ui/js/guidance.js"), "utf8");
 const validationsJs = fs.readFileSync(path.join(root, "ui/js/validations.js"), "utf8");
 const html = fs.readFileSync(path.join(root, "ui/arkadia_beta_1.2.html"), "utf8");
+const competenceState = { race: "", carriere: "", moralite: "balancee", selected: [], schools: [] };
+function fakeSelectedCompetenceRows() {
+  return competenceState.selected.map((name, index) => ({
+    id: `selected-competence-${index + 1}`,
+    querySelector: (selector) => selector === ".comp-sel" ? { value: `${name}|0||Générale|1|0` } : null
+  }));
+}
+const competenceContext = vm.createContext({
+  DATABASE_OPTIONS: options,
+  COMPETENCE_META: meta,
+  COMPETENCE_META_INDEX: {},
+  document: {
+    querySelectorAll: (selector) => {
+      if (selector === "#comp-tbody tr") return fakeSelectedCompetenceRows();
+      if (selector === ".comp-sel") return fakeSelectedCompetenceRows().map((fakeRow) => fakeRow.querySelector(".comp-sel"));
+      return [];
+    }
+  },
+  v: (id) => competenceState[id] || "",
+  g: () => null,
+  normalizeCompetenceKey,
+  sortByText: (items) => [...items].sort((a, b) => String(a).localeCompare(String(b), "fr", { sensitivity: "base" })),
+  getDatabaseCarriereOption: (key = competenceState.carriere) => options.carrieres.find((option) => option.value === key) || null,
+  getDatabaseCompetenceOptions: () => options.competences || [],
+  selectedCompetenceNames: () => competenceState.selected,
+  getSelectedSpellSchools: () => competenceState.schools,
+  carriereEstSemiMagique: (carriere = options.carrieres.find((option) => option.value === competenceState.carriere)) => Boolean(carriere?.semiMagique),
+  carriereDonneAccesSorts: (carriere = options.carrieres.find((option) => option.value === competenceState.carriere)) => Boolean(carriere && (Number(carriere.ptsMagie) > 0 || Number(carriere.maxMagique) > 0))
+});
+vm.runInContext(competencesJs, competenceContext, { filename: "ui/competences/competences.js" });
+
+function freeCompetenceFirstXp(race, carriere, nom, cat = "Raciale") {
+  competenceState.race = race;
+  competenceState.carriere = carriere;
+  return competenceContext.getFreeCompetenceFirstXp(nom, cat, "");
+}
+
+function competenceOptionsFor(race, carriere, { selected = [], schools = [], moralite = "balancee" } = {}) {
+  competenceState.race = race;
+  competenceState.carriere = carriere;
+  competenceState.moralite = moralite;
+  competenceState.selected = selected;
+  competenceState.schools = schools;
+  return competenceContext.getCompOptions("");
+}
+
+function competenceIsAvailable(race, carriere, nom, state = {}) {
+  const target = normalizeCompetenceKey(nom);
+  return competenceOptionsFor(race, carriere, state).some((option) => normalizeCompetenceKey(option.nom) === target);
+}
+
+function contactMarchandOptionsFor(race, carriere, state = {}) {
+  return competenceOptionsFor(race, carriere, state).filter((option) => normalizeCompetenceKey(option.nom).startsWith("contact marchand"));
+}
+
+function duplicateCompetenceNamesFor(race, carriere) {
+  const counts = new Map();
+
+  competenceOptionsFor(race, carriere).forEach((option) => {
+    const key = normalizeCompetenceKey(option.nom);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+
+  return [...counts.entries()].filter(([, count]) => count > 1);
+}
+
+const magicState = { race: "", carriere: "", competences: [] };
+const magicContext = vm.createContext({
+  document: {
+    getElementById: (id) => ({ value: magicState[id] || "" }),
+    querySelectorAll: (selector) => {
+      if (selector !== ".comp-sel") return [];
+      return magicState.competences.map((name) => ({ value: `${name}|0||Générale|1|0` }));
+    }
+  },
+  getDatabaseCarriereOption: (key = magicState.carriere) => options.carrieres.find((option) => option.value === key) || null,
+  getDatabaseRaceOption: (key = magicState.race) => options.races.find((option) => option.value === key) || null
+});
+vm.runInContext(stateJs, magicContext, { filename: "ui/js/state.js" });
+
+function magicPointsFor(race, carriere) {
+  magicState.race = race;
+  magicState.carriere = carriere;
+  magicState.competences = [];
+  return magicContext.getCarriereMagicPoints(magicContext.getDatabaseCarriereOption(carriere));
+}
+
+function hasSpellAccessFor(race, carriere) {
+  magicState.race = race;
+  magicState.carriere = carriere;
+  magicState.competences = [];
+  return magicContext.carriereDonneAccesSorts(magicContext.getDatabaseCarriereOption(carriere));
+}
+
+function sortMaxFor(race, carriere, competences = []) {
+  magicState.race = race;
+  magicState.carriere = carriere;
+  magicState.competences = competences;
+  return magicContext.getCarriereSortMaxLevel(magicContext.getDatabaseCarriereOption(carriere));
+}
+
+function input(value = "") {
+  return { value: String(value) };
+}
+
+function row(fields) {
+  return {
+    querySelector: (selector) => fields[selector] || null
+  };
+}
+
+function calculatedSpentXpWithSpecialRows() {
+  const elements = {
+    "xp-total": input("0"),
+    "xp-depart": input("0"),
+    "xp-dep": input("0"),
+    "xp-dispo": input("0"),
+    "xp-bar": { style: {} },
+    "xp-lbl-d": { textContent: "" },
+    "xp-lbl-t": { textContent: "" }
+  };
+  const calcContext = vm.createContext({
+    document: {
+      querySelectorAll: (selector) => {
+        if (selector === ".comp-xp") return [input("2")];
+        if (selector === "#sorts-tbody tr") return [row({ ".sort-lvl-sel": input("1"), ".sort-nom-sel": input("Sort"), ".sort-xp": input("3") })];
+        if (selector === "#special-comp-tbody tr") return [row({ ".special-comp-nom": input(""), ".special-comp-freq": input("Autorisation"), ".special-comp-note": input(""), ".special-comp-count": input("2"), ".special-comp-xp": input("7") })];
+        if (selector === "#special-sort-tbody tr") return [row({ ".special-sort-ecole": input(""), ".special-sort-lvl": input(""), ".special-sort-nom": input(""), ".special-sort-note": input("Autorisation"), ".special-sort-xp": input("4") })];
+        return [];
+      }
+    },
+    g: (id) => elements[id] || null,
+    v: (id) => elements[id]?.value || "",
+    sv: (id, value) => {
+      if (elements[id]) elements[id].value = String(value);
+    },
+    getDatabaseRaceOption: () => null,
+    getArmorRules: () => ({ maxCombinedPoints: 13 }),
+    getRaceChanceMax: () => 3,
+    selectedCompetenceNames: () => [],
+    updateScenarioResources: () => {},
+    alert: () => {},
+    eventCountBaseline: 0,
+    chanceCountBaseline: 0,
+    lastEventAbuseWarning: "",
+    lastChanceAbuseWarning: ""
+  });
+
+  vm.runInContext(calculsJs, calcContext, { filename: "ui/caracteristiques/calculs.js" });
+  calcContext.calcXP();
+  return Number(elements["xp-dep"].value);
+}
+
 assert(calculsJs.includes("const MAX_XP_EVENEMENTS = 150"), "La limite de 150 XP d'evenements doit etre declaree.");
 assert(calculsJs.includes("Math.min(getEventXpRaw(),MAX_XP_EVENEMENTS)"), "Les XP d'evenements doivent etre plafonnes a 150.");
 assert(sauvegardeJs.includes("xpEvenements:getEventXpUsed()"), "L'export doit sauvegarder les XP d'evenements plafonnes.");
 assert(!html.includes("alert-evenements-abus"), "La section Historique des evenements ne doit plus afficher d'alerte.");
 assert(html.includes("special-comp-tbody") && html.includes("special-sort-tbody"), "La section VI doit exposer les ajouts speciaux de l'animation.");
 assert(calculsJs.includes("#special-comp-tbody") && calculsJs.includes("#special-sort-tbody"), "Les XP des ajouts speciaux doivent etre inclus dans le total depense.");
+assert(/special-comp-note[^>]+oninput="calcXP\(\)"/.test(specialsJs), "La note des competences speciales doit recalculer les XP.");
+assert(/special-sort-note[^>]+oninput="calcXP\(\)"/.test(specialsJs), "La note des sorts speciaux doit recalculer les XP.");
+assert(calculatedSpentXpWithSpecialRows() === 23, "Les XP des competences speciales et sorts speciaux doivent alimenter les XP depenses.");
 assert(html.includes("ressourcesEtNotes/ressources.js"), "Le calcul automatique des ressources doit etre charge.");
 assert(html.includes('id="ressources"') && html.includes("readonly"), "Les ressources par scenario doivent etre un champ calcule.");
 assert(calculsJs.includes("updateScenarioResources"), "Les ressources doivent etre recalculees avec les stats.");
@@ -122,6 +305,23 @@ assert(options.rules?.competences?.concoctionRules?.["concoction alchimie"], "Le
 assert(options.rules?.competences?.scenarioResourceRules?.byCompetence?.forge, "Les ressources de debut de scenario doivent etre exposees au frontend.");
 assert(options.rules?.competences?.scenarioResourceRules?.creationAccrue?.key, "La regle de Creation accrue doit etre exposee au frontend.");
 assert(!options.competences.some((option) => normalizeCompetenceKey(option.nom) === "test"), "La competence Test ne doit pas etre exposee.");
+for (const excludedRace of excludedRaceValues) {
+  assert(!options.races.some((option) => option.value === excludedRace), `La race ${excludedRace} ne doit pas etre exposee.`);
+  assert(!options.competences.some((option) => option.race === excludedRace), `Les competences raciales de ${excludedRace} ne doivent pas etre exposees.`);
+  [
+    "carrieresPermisesParRace",
+    "moralitesPermisesParRace",
+    "divinitesPermisesParRace",
+    "faiblessesParRace",
+    "immunitesParRace"
+  ].forEach((mapName) => {
+    assert(!options[mapName]?.[excludedRace], `${mapName} ne doit pas contenir ${excludedRace}.`);
+  });
+  const accessRules = options.rules?.competences?.access || {};
+  ["charognardRaces", "rageAnimaleRaces", "sangImpurDirectRaces", "sangInterditRaces", "sangPurInterditRaces"].forEach((ruleName) => {
+    assert(!(accessRules[ruleName] || []).includes(excludedRace), `${ruleName} ne doit pas contenir ${excludedRace}.`);
+  });
+}
 assert(options.religions.some((option) => option.value === "Esprit de la guerre (Odann)"), "Les variantes des Esprits de la guerre doivent etre creees.");
 assert(!options.religions.some((option) => option.value === "Esprits de la guerre"), "Le choix generique Esprits de la guerre ne doit pas etre expose sans ecoles.");
 assert(options.ecolesParDivinite?.["Esprit de la guerre (Khurn)"]?.includes("Voie maudite"), "Khurn doit donner acces a la Voie maudite.");
@@ -141,6 +341,69 @@ assert(competenceMax(options, meta, "Creation d'anima") > 1, "Creation d'anima d
 assert(competenceMax(options, meta, "Bravoure") === 1, "Bravoure gratuite doit rester non cumulable.");
 assert(competenceMax(options, meta, "Resistance physique") > 1, "Resistance physique doit rester cumulable.");
 assert(competenceMax(options, meta, "Lancer meurtrier") > 1, "Lancer meurtrier doit rester cumulable.");
+assert((options.competences || []).filter((option) => option.race).every((option) => option.gratuit === true && Number(option.xp) === 0), "Les avantages raciaux doivent etre exposes comme gratuits.");
+assertRacialFree(options, "demi-elfe", "Archerie", 3);
+assertRacialFree(options, "demi-elfe", "Lecture et ecriture Commun", 2);
+assertRacialFree(options, "elfe-gris", "Haute magie", 3);
+assertRacialFree(options, "elfe-gris", "Resistance magique", 6);
+assertRacialFree(options, "elfe-lunaire", "Resistance magique", 6);
+assertRacialFree(options, "elfe-lunaire", "Resistance mentale", 6);
+assert(competencesJs.includes("racialCompetenceCareerAllows"), "Les avantages raciaux gratuits doivent etre filtres selon l'acces de carriere.");
+const duplicateCompetenceChoices = options.races.flatMap((race) => {
+  return options.carrieres.map((carriere) => {
+    const duplicates = duplicateCompetenceNamesFor(race.value, carriere.value);
+    return duplicates.length ? `${race.value}/${carriere.value}: ${duplicates.map(([name, count]) => `${name} x${count}`).join(", ")}` : "";
+  }).filter(Boolean);
+});
+assert(duplicateCompetenceChoices.length === 0, `Les choix de competences ne doivent pas afficher de doublons: ${duplicateCompetenceChoices.slice(0, 5).join("; ")}`);
+const elfeNoirInquisiteurTorture = competenceOptionsFor("elfe-noir", "inquisiteur").filter((option) => normalizeCompetenceKey(option.nom) === "torture");
+assert(elfeNoirInquisiteurTorture.length === 1 && normalizeCompetenceKey(elfeNoirInquisiteurTorture[0].cat) === "raciale", "Elfe noir Inquisiteur doit voir Torture une seule fois, avec le meilleur cout.");
+assert(!competenceIsAvailable("humain", "mage", "Archerie Arcane"), "Archerie Arcane doit exiger Archerie.");
+assert(competenceIsAvailable("humain", "mage", "Archerie Arcane", { selected: ["Archerie"] }), "Archerie Arcane doit etre disponible avec Archerie et une carriere magique.");
+assert(!competenceIsAvailable("humain", "barbare", "Baton de pouvoir"), "Baton de pouvoir doit exiger une carriere magique ou semi-magique.");
+assert(competenceIsAvailable("humain", "mage", "Baton de pouvoir"), "Baton de pouvoir doit etre disponible pour une carriere magique.");
+assert(!competenceIsAvailable("humain", "combattant", "Invocation Guerriere"), "Invocation Guerriere doit exiger Religion.");
+assert(competenceIsAvailable("humain", "combattant", "Invocation Guerriere", { selected: ["Religion"] }), "Invocation Guerriere doit etre disponible avec Religion et une carriere armee.");
+assert(!competenceIsAvailable("humain", "mage", "Rituel", { selected: ["Religion"] }), "Rituel doit exiger Lecture et ecriture en plus de Religion.");
+assert(competenceIsAvailable("humain", "mage", "Rituel", { selected: ["Religion", "Lecture et ecriture - Commun"] }), "Rituel doit etre disponible avec Religion et Lecture et ecriture.");
+assert(!competenceIsAvailable("humain", "mage", "Peinture des Morts"), "Peinture des Morts doit exiger l'ecole Necromancie.");
+assert(competenceIsAvailable("humain", "mage", "Peinture des Morts", { schools: ["Necromancie"] }), "Peinture des Morts doit etre disponible avec l'ecole Necromancie.");
+assert(competenceIsAvailable("rasgadan", "totem", "Rage animale"), "Rasgadan Totem doit avoir acces a Rage animale.");
+assert(!competenceIsAvailable("rasgadan", "druide", "Rage animale"), "Rage animale doit exiger la carriere Totem.");
+assert(!competenceIsAvailable("humain", "totem", "Rage animale"), "Rage animale doit exiger une race permise.");
+assert(competenceIsAvailable("haut-elfe", "combattant", "Noblesse"), "Noblesse doit etre disponible pour Haut-Elfe.");
+assert(!competenceIsAvailable("humain", "combattant", "Noblesse"), "Noblesse doit etre reservee aux Hauts-Elfes.");
+assert(!competenceIsAvailable("humain", "combattant", "Sang impur"), "Sang impur doit exiger une race directe ou Religion malefique.");
+assert(competenceIsAvailable("humain", "combattant", "Sang impur", { moralite: "malefique", selected: ["Religion"] }), "Sang impur doit etre disponible avec Religion malefique.");
+assert(!competenceIsAvailable("humain", "combattant", "Sang pur", { moralite: "benefique" }), "Sang pur doit exiger Religion benefique.");
+assert(competenceIsAvailable("humain", "combattant", "Sang pur", { moralite: "benefique", selected: ["Religion"] }), "Sang pur doit etre disponible avec Religion benefique.");
+assert(!competenceIsAvailable("demi-demon", "combattant", "Sang pur", { moralite: "benefique", selected: ["Religion"] }), "Sang pur doit rester interdit aux races impures.");
+const contactMarchandSelection = [
+  "Contact Marchand - Mineur",
+  "Contact Marchand - Druide",
+  "Contact Marchand - Brasseur"
+];
+assert(contactMarchandOptionsFor("humain", "marchand").length === 7, "Marchand doit voir les 7 contacts marchands avant selection.");
+assert(contactMarchandOptionsFor("humain", "marchand", { selected: contactMarchandSelection.slice(0, 1) }).length === 6, "Un contact marchand deja choisi ne doit pas etre propose une deuxieme fois.");
+assert(contactMarchandOptionsFor("humain", "marchand", { selected: contactMarchandSelection.slice(0, 2) }).length === 5, "Marchand doit pouvoir choisir un troisieme contact marchand different.");
+assert(contactMarchandOptionsFor("humain", "marchand", { selected: contactMarchandSelection }).length === 0, "Marchand ne doit pas pouvoir choisir plus de 3 contacts marchands.");
+assert(contactMarchandOptionsFor("humain", "charlatan").length === 7, "Une carriere mixte marchande doit voir les contacts marchands avant selection.");
+assert(contactMarchandOptionsFor("humain", "charlatan", { selected: contactMarchandSelection.slice(0, 1) }).length === 0, "Une carriere mixte marchande ne doit pas pouvoir choisir plus de 1 contact marchand.");
+assert(competencesJs.includes("getFreeCompetenceFirstXp"), "Les avantages raciaux gratuits doivent appliquer le surcout mixte au premier achat.");
+assert(freeCompetenceFirstXp("elfe-gris", "mage", "Haute magie") === 0, "Elfe gris Mage doit acheter Haute magie gratuitement au premier achat.");
+assert(freeCompetenceFirstXp("elfe-gris", "barde", "Haute magie") === 1, "Elfe gris Barde doit payer 1 XP de surcout mixte sur Haute magie raciale.");
+assert(freeCompetenceFirstXp("demi-elfe", "barde", "Archerie") === 0, "Demi-Elfe Barde doit garder Archerie generale gratuite sans surcout mixte.");
+assert(magicPointsFor("elfe-sanguinaire", "barde") === 20, "Elfe sanguinaire semi-magique doit avoir 20 points de magie.");
+assert(magicPointsFor("elfe-sanguinaire", "mage") === 30, "Elfe sanguinaire magique doit avoir 30 points de magie.");
+assert(magicPointsFor("demi-elfe", "mage") === 20, "Les autres races magiques doivent conserver les points de magie de carriere.");
+assert(hasSpellAccessFor("elfe-sanguinaire", "barbare") === false && magicPointsFor("elfe-sanguinaire", "barbare") === 0, "Le bonus Elfe sanguinaire ne doit pas donner acces aux sorts a une carriere non magique.");
+assert(sortMaxFor("humain", "sage") === 6, "Sage doit garder un niveau de sorts maximum de base de 6.");
+assert(sortMaxFor("humain", "sage", ["Ferveur magique"]) === 7, "Ferveur magique doit donner acces au niveau 7 pour Sage.");
+assert(sortMaxFor("humain", "barde") === 5, "Une carriere semi-magique doit garder un niveau de sorts maximum de base de 5.");
+assert(sortMaxFor("humain", "barde", ["Ferveur magique"]) === 6, "Ferveur magique doit donner acces au niveau 6 pour une carriere semi-magique.");
+assert(sortMaxFor("humain", "barbare", ["Ferveur magique"]) === 0, "Ferveur magique ne doit pas donner de sorts a une carriere non magique.");
+assert(normalizeCompetenceKey(competenceMetaEntry(meta, "Ambidexterie")?.frequence) === "a volonte", "Les competences non cumulables sans frequence Codex doivent etre a volonte.");
+assert(normalizeCompetenceKey(competenceMetaEntry(meta, "Creation d anima")?.frequence) === "1 fois", "Une frequence Codex explicite doit etre conservee.");
 assert(hasFirstFreeRule(options, "combattant", "resistance physique"), "Combattant doit avoir le 1er achat de Resistance physique gratuit.");
 assert(hasFirstFreeRule(options, "mage", "lecture et ecriture"), "Mage doit avoir le 1er Lecture et ecriture gratuit.");
 assert(hasFirstFreeRule(options, "barde", "lecture et ecriture"), "Barde doit avoir le 1er Lecture et ecriture gratuit.");

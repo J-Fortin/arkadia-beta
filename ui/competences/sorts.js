@@ -198,7 +198,7 @@ function addSort(nivVal='',nomVal='',xpVal='',ecoleVal=''){
   const id='sort-'+sortRows;
   const lvlNum=parseInt(nivVal)||0;
   const initialSchool=ecoleVal || getDefaultSortSchool();
-  const xpCost=xpVal!==''?xpVal:(lvlNum&&initialSchool?sortXpCost(lvlNum,initialSchool,nomVal):'');
+  const xpCost=lvlNum&&initialSchool?sortXpCost(lvlNum,initialSchool,nomVal):'';
   const tr=document.createElement('tr');
   tr.id=id;
   tr.innerHTML=`
@@ -217,7 +217,7 @@ function addSort(nivVal='',nomVal='',xpVal='',ecoleVal=''){
         <option value="">-- Choisir le niveau d'abord --</option>
       </select>
     </td>
-    <td class="td-xp"><input type="number" class="sort-xp" min="0" value="${xpCost}" oninput="calcXP()"></td>
+    <td class="td-xp"><input type="number" class="sort-xp computed" min="0" value="${xpCost}" readonly></td>
     <td class="td-btn no-print"><button class="ibtnd" onclick="removeRow('${id}')">x</button></td>
   `;
   g('sorts-tbody').appendChild(tr);
@@ -236,7 +236,7 @@ function addSort(nivVal='',nomVal='',xpVal='',ecoleVal=''){
       const nomSel=tr.querySelector('.sort-nom-sel');
       nomSel.value=nomVal;
       if(!nomSel.value)nomSel.value='';
-      if(xpVal==='')onSortNomSel(nomSel,id);
+      onSortNomSel(nomSel,id);
     }
   }
 

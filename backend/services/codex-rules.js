@@ -21,6 +21,8 @@ export const valueAliases = {
 
 export const defaultRaceChances = 3;
 
+export const excludedRaceValues = new Set(["norde"]);
+
 export const armorRules = {
   maxCombinedPoints: 13,
   bodyZones: [
@@ -499,11 +501,11 @@ export const competenceRules = {
     }
   },
   access: {
-    charognardRaces: ["corvus", "orque", "norde", "demi-demon", "rasgadan", "gobelin", "morgull", "saurien", "ratfolk"],
+    charognardRaces: ["corvus", "orque", "demi-demon", "rasgadan", "gobelin", "morgull", "saurien", "ratfolk"],
     rageAnimaleRaces: ["arboreen", "corvus", "merflok", "rasgadan", "ratfolk", "saurien"],
     sangImpurDirectRaces: ["demi-demon", "elfe-sanguinaire", "morgull", "illithyd"],
-    sangInterditRaces: ["norde"],
-    sangPurInterditRaces: ["demi-demon", "elfe-sanguinaire", "morgull", "illithyd", "norde"]
+    sangInterditRaces: [],
+    sangPurInterditRaces: ["demi-demon", "elfe-sanguinaire", "morgull", "illithyd"]
   }
 };
 

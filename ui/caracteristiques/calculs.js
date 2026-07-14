@@ -30,7 +30,7 @@ function calcXP(){
     if(hasSort)dep+=parseInt(row.querySelector('.sort-xp')?.value)||0;
   });
   document.querySelectorAll('#special-comp-tbody tr').forEach(row=>{
-    const hasSpecial=row.querySelector('.special-comp-nom')?.value||row.querySelector('.special-comp-note')?.value;
+    const hasSpecial=row.querySelector('.special-comp-nom')?.value||row.querySelector('.special-comp-freq')?.value||row.querySelector('.special-comp-note')?.value;
     const count=Math.max(1,parseInt(row.querySelector('.special-comp-count')?.value,10)||1);
     if(hasSpecial)dep+=(parseInt(row.querySelector('.special-comp-xp')?.value)||0)*count;
   });
@@ -183,6 +183,8 @@ function calcStats(){
   const racePv=getRacePvInfo();
   const compPv=getCompetencePvBonus();
   const baseMagic=getCarriereMagicPoints();
+  const careerMagic=typeof getBaseCarriereMagicPoints==='function'?getBaseCarriereMagicPoints():baseMagic;
+  const raceMagic=typeof getRaceMagicBonus==='function'?getRaceMagicBonus():0;
   const compMagic=getCompetenceMagicBonus();
   pvBase=racePv.value+compPv;
   magiePts=baseMagic+compMagic;
@@ -191,7 +193,11 @@ function calcStats(){
   g('sv-pv').textContent=compPv?`${racePv.label} ${compPv>0?'+':'-'} ${Math.abs(compPv)}`:racePv.label;
   if(g('sv-magie')){
     g('sv-magie').textContent=(carriereDonneAccesSorts()||compMagic)?String(magiePts):'—';
-    g('sv-magie').title=compMagic?`Base carrière ${baseMagic}, compétences ${compMagic>0?'+':''}${compMagic}`:'';
+    const magicDetails=[];
+    if(carriereDonneAccesSorts()||raceMagic||compMagic)magicDetails.push(`Carrière ${careerMagic}`);
+    if(raceMagic)magicDetails.push(`race +${raceMagic}`);
+    if(compMagic)magicDetails.push(`compétences ${compMagic>0?'+':''}${compMagic}`);
+    g('sv-magie').title=magicDetails.join(', ');
   }
   g('alert-pv').classList.toggle('show',total>maxPvArmure);
   updateChanceAbuseWarning();
@@ -206,6 +212,8 @@ function removeRow(id){
     calcXP();
     calcStats();
     updateFaiblessesImmunites();
+    if(typeof renderCarriereInfo==='function')renderCarriereInfo(getSelectedCarriere());
+    if(typeof refreshAllSortRows==='function')refreshAllSortRows();
   }
 }
 

@@ -14,6 +14,7 @@ function onRace(){
     validerMoraliteDivinite();
     updateEcoleSelector();
     refreshAllSortRows();
+    if(v('carriere'))renderCarriereInfo(getDatabaseCarriereOption(v('carriere')));
     calcXP(); calcStats(); updateCompetences();
     updateSelectionGuidance();
     return;
@@ -29,6 +30,7 @@ function onRace(){
   validerMoraliteDivinite();
   updateEcoleSelector();
   refreshAllSortRows();
+  if(v('carriere'))renderCarriereInfo(getDatabaseCarriereOption(v('carriere')));
   calcXP(); calcStats(); updateCompetences();
   updateSelectionGuidance();
 }
@@ -107,6 +109,20 @@ const CAREER_ADVANTAGE_SUMMARY={
   sage:' · Avantages : compétences Prêtre/Mage, 1er Lecture et écriture gratuit, tous les alphabets, 1 ou 2 divinités, 1 école divine + 1 école arcane, Concoction : Alchimie ou Herboristerie'
 };
 
+function renderCarriereInfo(c){
+  if(!c){
+    showInfo('carr-info','');
+    return;
+  }
+
+  const semiInfo=carriereEstSemiMagique(c)&&carriereDonneAccesSorts(c)?' · Sorts semi-magiques +1 XP':'';
+  const raceMagic=typeof getRaceMagicBonus==='function'?getRaceMagicBonus(c):0;
+  const raceMagicInfo=raceMagic?` · Race +${raceMagic} PM`:'';
+  const magicInfo=carriereDonneAccesSorts(c)?` · Magie : ${getCarriereMagicPoints(c)} pts${raceMagicInfo} · Niveau max : ${getCarriereSortMaxLevel(c)}${semiInfo}`:'';
+  const advantageInfo=CAREER_ADVANTAGE_SUMMARY[c.value] || '';
+  showInfo('carr-info',`<b>${c.label}</b> · Armure permise : ${c.armurePermise} · Type : ${c.typeArmure || '—'}${magicInfo}${advantageInfo}`);
+}
+
 function onCarriere(){
   refreshRaceCareerOptions('carriere');
   const c=getDatabaseCarriereOption(v('carriere'));
@@ -121,10 +137,7 @@ function onCarriere(){
     updateSelectionGuidance();
     return;
   }
-  const semiInfo=carriereEstSemiMagique(c)&&carriereDonneAccesSorts(c)?' · Sorts semi-magiques +1 XP':'';
-  const magicInfo=carriereDonneAccesSorts(c)?` · Magie : ${getCarriereMagicPoints(c)} pts · Niveau max : ${getCarriereSortMaxLevel(c)}${semiInfo}`:'';
-  const advantageInfo=CAREER_ADVANTAGE_SUMMARY[c.value] || '';
-  showInfo('carr-info',`<b>${c.label}</b> · Armure permise : ${c.armurePermise} · Type : ${c.typeArmure || '—'}${magicInfo}${advantageInfo}`);
+  renderCarriereInfo(c);
   const hasSortAccess=carriereDonneAccesSorts(c);
   magiePts=getCarriereMagicPoints(c);
   g('sv-magie').textContent=hasSortAccess?magiePts:'—';

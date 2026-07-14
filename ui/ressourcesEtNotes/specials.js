@@ -14,10 +14,10 @@ function addSpecialComp(nomVal='',freqVal='',countVal='1',xpVal='',noteVal=''){
   tr.id=id;
   tr.innerHTML=`
     <td><input type="text" class="special-comp-nom" value="${specialAttr(nomVal)}" placeholder="Nom de la competence" oninput="calcXP()"></td>
-    <td><input type="text" class="special-comp-freq" value="${specialAttr(freqVal)}" placeholder="Frequence"></td>
+    <td><input type="text" class="special-comp-freq" value="${specialAttr(freqVal)}" placeholder="Frequence" oninput="calcXP()"></td>
     <td><input type="number" class="special-comp-count" min="1" value="${specialAttr(countVal || '1')}" oninput="calcXP()"></td>
     <td class="td-xp"><input type="number" class="special-comp-xp" min="0" value="${specialAttr(xpVal || '0')}" oninput="calcXP()"></td>
-    <td><input type="text" class="special-comp-note" value="${specialAttr(noteVal)}" placeholder="Titre, race avancee, autorisation..."></td>
+    <td><input type="text" class="special-comp-note" value="${specialAttr(noteVal)}" placeholder="Titre, race avancee, autorisation..." oninput="calcXP()"></td>
     <td class="td-btn no-print"><button class="ibtnd" onclick="removeRow('${id}')">x</button></td>
   `;
   g('special-comp-tbody').appendChild(tr);
@@ -34,7 +34,7 @@ function addSpecialSort(ecoleVal='',lvlVal='',nomVal='',xpVal='',noteVal=''){
     <td><input type="number" class="special-sort-lvl" min="0" value="${specialAttr(lvlVal)}" oninput="calcXP()"></td>
     <td><input type="text" class="special-sort-nom" value="${specialAttr(nomVal)}" placeholder="Nom du sort" oninput="calcXP()"></td>
     <td class="td-xp"><input type="number" class="special-sort-xp" min="0" value="${specialAttr(xpVal || '0')}" oninput="calcXP()"></td>
-    <td><input type="text" class="special-sort-note" value="${specialAttr(noteVal)}" placeholder="Titre, race avancee, autorisation..."></td>
+    <td><input type="text" class="special-sort-note" value="${specialAttr(noteVal)}" placeholder="Titre, race avancee, autorisation..." oninput="calcXP()"></td>
     <td class="td-btn no-print"><button class="ibtnd" onclick="removeRow('${id}')">x</button></td>
   `;
   g('special-sort-tbody').appendChild(tr);

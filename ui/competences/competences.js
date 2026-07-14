@@ -162,6 +162,35 @@ function exclusiveConcoctionAllowed(option){
   return allowed;
 }
 
+function getCompetenceAccessKeys(nom){
+  const normalized=normalizeCompetenceKey(nom);
+  const keys=new Set([normalized]);
+
+  if(normalized.startsWith('resistance contre un element ')){
+    keys.add('resistance contre un element');
+  }
+
+  return keys;
+}
+
+function competenceMatchesAccessKey(option, keys){
+  return keys.has(normalizeCompetenceKey(option.nom));
+}
+
+function racialCompetenceCareerAllows(option){
+  if(!option.race)return true;
+
+  const carr=v('carriere');
+  const keys=getCompetenceAccessKeys(option.nom);
+
+  return getDatabaseCompetenceOptions().some(candidate=>{
+    if(candidate.race || !competenceMatchesAccessKey(candidate,keys))return false;
+    if(candidate.carriere && candidate.carriere!==carr)return false;
+    if(!candidate.carriere && parseXP(candidate.xp)<=0)return false;
+    return competenceAllowedByCodexRestrictions(candidate);
+  });
+}
+
 function competenceAllowedByCodexRestrictions(option){
   const name=normalizeCompetenceKey(option.nom);
   const race=v('race');
@@ -169,6 +198,8 @@ function competenceAllowedByCodexRestrictions(option){
   const moralite=v('moralite');
   const concoctionRules=getConcoctionRules();
   const accessRules=getCompetenceAccessRules();
+
+  if(option.race && !racialCompetenceCareerAllows(option))return false;
 
   if(concoctionRules[name] && (!concoctionSourceAllowed(option) || !exclusiveConcoctionAllowed(option)))return false;
 
@@ -360,6 +391,104 @@ function getCurrentRowCompetenceKey(rowId=''){
   return normalizeCompetenceKey(g(rowId)?.querySelector('.comp-sel')?.value?.split('|')[0] || '');
 }
 
+function competenceIsContactMarchand(nom){
+  return normalizeCompetenceKey(nom).startsWith('contact marchand');
+}
+
+function carriereMixteHasMarchandSource(){
+  return carriereEstMixte() && getMixedCareerSources().some(source=>source.key==='marchand');
+}
+
+function getContactMarchandSelectionLimit(){
+  if(v('carriere')==='marchand')return 3;
+  if(carriereMixteHasMarchandSource())return 1;
+  return Infinity;
+}
+
+function selectedContactMarchandCount(excludeRowId=''){
+  let count=0;
+
+  document.querySelectorAll('#comp-tbody tr').forEach(row=>{
+    if(excludeRowId && row.id===excludeRowId)return;
+    const name=row.querySelector('.comp-sel')?.value?.split('|')[0] || '';
+    if(competenceIsContactMarchand(name))count++;
+  });
+
+  return count;
+}
+
+function selectedContactMarchandCountBefore(rowId=''){
+  if(!rowId)return selectedContactMarchandCount();
+
+  let count=0;
+  for(const row of document.querySelectorAll('#comp-tbody tr')){
+    if(row.id===rowId)break;
+    const name=row.querySelector('.comp-sel')?.value?.split('|')[0] || '';
+    if(competenceIsContactMarchand(name))count++;
+  }
+
+  return count;
+}
+
+function contactMarchandLimitAllows(option,rowId='',currentKey=''){
+  if(!competenceIsContactMarchand(option.nom))return true;
+
+  const limit=getContactMarchandSelectionLimit();
+  if(!Number.isFinite(limit))return true;
+
+  if(competenceIsContactMarchand(currentKey)){
+    return selectedContactMarchandCountBefore(rowId)<limit;
+  }
+
+  return selectedContactMarchandCount(rowId)<limit;
+}
+
+function getOptionInitialXp(option,rowId=''){
+  const gratuit=Boolean(option.gratuit);
+  const firstFree=!gratuit && firstFreeCompetenceApplies(option.nom,rowId);
+  const xpNum=xpFinalCompetence(option.xp, option.cat, gratuit, rowId, option.nom);
+
+  return gratuit?getFreeCompetenceFirstXp(option.nom,option.cat,rowId):(firstFree?0:xpNum);
+}
+
+function getOptionExtraXp(option,rowId=''){
+  const gratuit=Boolean(option.gratuit);
+  const firstFree=!gratuit && firstFreeCompetenceApplies(option.nom,rowId);
+  const firstXp=getOptionInitialXp(option,rowId);
+
+  return gratuit || firstFree?getExtraXpForFreeCompetence(option.nom,option.baseXp || option.xp,rowId,true):firstXp;
+}
+
+function getOptionSourcePriority(option){
+  if(option.race)return 0;
+  if(option.carriere)return 1;
+  return 2;
+}
+
+function optionIsCheaper(candidate,current,rowId=''){
+  const candidateInitial=getOptionInitialXp(candidate,rowId);
+  const currentInitial=getOptionInitialXp(current,rowId);
+  if(candidateInitial!==currentInitial)return candidateInitial<currentInitial;
+
+  const candidateExtra=getOptionExtraXp(candidate,rowId);
+  const currentExtra=getOptionExtraXp(current,rowId);
+  if(candidateExtra!==currentExtra)return candidateExtra<currentExtra;
+
+  return getOptionSourcePriority(candidate)<getOptionSourcePriority(current);
+}
+
+function dedupeCompetenceOptions(options,rowId=''){
+  const byName=new Map();
+
+  options.forEach(option=>{
+    const key=normalizeCompetenceKey(option.nom);
+    const current=byName.get(key);
+    if(!current || optionIsCheaper(option,current,rowId))byName.set(key,option);
+  });
+
+  return [...byName.values()];
+}
+
 function getCompOptions(rowId=''){
   const carr=v('carriere');
   const race=v('race');
@@ -382,13 +511,16 @@ function getCompOptions(rowId=''){
   const specificNames=new Set(options
     .filter(option=>option.race || option.carriere || option.gratuit)
     .map(option=>normalizeCompetenceKey(option.nom)));
-  return options.filter(option=>{
+  const visibleOptions=options.filter(option=>{
     const normalized=normalizeCompetenceKey(option.nom);
+    if(!contactMarchandLimitAllows(option,rowId,currentKey))return false;
     if(selectedElsewhere.has(normalized) && normalized!==currentKey)return false;
     if(option.gratuit)return true;
     if(!option.race && !option.carriere && specificNames.has(normalized))return false;
     return !freeNames.has(normalized);
   });
+
+  return dedupeCompetenceOptions(visibleOptions,rowId);
 }
 
 function getCompetenceSourcePrefix(cat){
@@ -417,15 +549,20 @@ function rebuildCompSelect(sel){
       const gratuit=Boolean(o.gratuit);
       const firstFree=!gratuit && firstFreeCompetenceApplies(o.nom,rowId);
       const xpNum=xpFinalCompetence(o.xp, o.cat, gratuit, rowId, o.nom);
+      const firstXp=getOptionInitialXp(o,rowId);
       const meta=getCompetenceMeta(o.nom, cat);
       const cumulableMax=parseInt(o.cumulableMax,10)||getCumulableMax(o.nom, cat);
       const frequencyLabel=meta.frequence?` · ${meta.frequence}`:'';
       const cumulableLabel=cumulableMax>1?` · max ${cumulableMax}`:'';
       const note=o.note?` [${o.note}]`:`${noteFirstFreeCompetence(o.nom,rowId)}${noteRabaisHumain(o.cat,rowId,gratuit || firstFree)}${noteCoutMixte(o.cat, gratuit || firstFree)}`;
-      const freeLabel=(gratuit || firstFree) && cumulableMax>1?' [1er GRATUIT]':' [GRATUIT]';
+      const freeLabel=firstXp>0?' [racial mixte +1]':((gratuit || firstFree) && cumulableMax>1?' [1er GRATUIT]':' [GRATUIT]');
       const label=getCompetenceSourcePrefix(cat)+o.nom+(gratuit || firstFree?freeLabel:note);
-      const extraXp=(gratuit || firstFree)?getExtraXpForFreeCompetence(o.nom,o.baseXp || o.xp,rowId,true):xpNum;
-      const xpDisplay=(gratuit || firstFree)?(cumulableMax>1?`1er GRATUIT, puis ${extraXp} XP`:'GRATUIT'):`${xpNum} XP`;
+      const extraXp=getOptionExtraXp(o,rowId);
+      const xpDisplay=(gratuit || firstFree)
+        ? (cumulableMax>1
+          ? `${firstXp>0?`1er ${firstXp} XP`:'1er GRATUIT'}, puis ${extraXp} XP`
+          : (firstXp>0?`${firstXp} XP`:'GRATUIT'))
+        : `${xpNum} XP`;
       optHtml+=`<option value="${o.nom}|${o.xp}|${gratuit?'gratuit':''}|${cat}|${cumulableMax}|${o.baseXp || o.xp}">${label} — ${xpDisplay}${frequencyLabel}${cumulableLabel}</option>`;
     });
     optHtml+='</optgroup>';
@@ -444,10 +581,10 @@ function parseXP(raw){
 function getPaidOptionsForCompetence(nom){
   const carr=v('carriere');
   const race=v('race');
-  const normalized=normalizeCompetenceKey(nom);
+  const accessKeys=getCompetenceAccessKeys(nom);
 
   return getDatabaseCompetenceOptions().filter(option=>{
-    if(option.gratuit || parseXP(option.xp)<=0 || normalizeCompetenceKey(option.nom)!==normalized)return false;
+    if(option.gratuit || parseXP(option.xp)<=0 || !competenceMatchesAccessKey(option,accessKeys))return false;
     const carriereOk=!option.carriere || option.carriere===carr;
     const raceOk=!option.race || option.race===race;
     return carriereOk && raceOk;
@@ -461,15 +598,31 @@ function getPaidOptionsForCompetence(nom){
 }
 
 function getExtraXpForFreeCompetence(nom, fallbackXp, rowId='', ignoreFirstFree=false){
-  const paidOptions=getPaidOptionsForCompetence(nom);
-  const careerOption=paidOptions.find(option=>option.carriere===v('carriere'));
-  const generalOption=paidOptions.find(option=>!option.carriere && !option.race);
-  const racialOption=paidOptions.find(option=>option.race===v('race'));
-  const option=careerOption || racialOption || generalOption;
+  const option=getPaidOptionForCompetence(nom);
   const rawXp=option?.xp ?? fallbackXp;
   const cat=option?.cat || 'Générale';
 
   return xpFinalCompetence(rawXp,cat,false,rowId,nom,ignoreFirstFree);
+}
+
+function getPaidOptionForCompetence(nom){
+  const paidOptions=getPaidOptionsForCompetence(nom);
+  const careerOption=paidOptions.find(option=>option.carriere===v('carriere'));
+  const generalOption=paidOptions.find(option=>!option.carriere && !option.race);
+  const racialOption=paidOptions.find(option=>option.race===v('race'));
+
+  return careerOption || racialOption || generalOption || null;
+}
+
+function getFreeCompetenceFirstXp(nom, cat='', rowId=''){
+  if(normalizeCompetenceKey(cat)!=='raciale')return 0;
+
+  const option=getPaidOptionForCompetence(nom);
+  if(!option)return 0;
+
+  return mixedSurchargeApplies(option.cat,false) && !annuleSurcoutMixte()
+    ? SURCOUT_CARRIERE_MIXTE
+    : 0;
 }
 
 function setCompCountOptions(countSel, max, selected='1') {
@@ -516,7 +669,7 @@ function addComp(nomVal='',xpVal='',freqVal='',countVal='1'){
     <td><select class="comp-sel" onchange="onCompSel(this,'${id}')"></select></td>
     <td><input type="text" class="comp-freq" value="${freqVal}" placeholder="Fréquence"></td>
     <td><select class="comp-count" onchange="onCompCount(this,'${id}')" disabled><option value="1">1</option></select></td>
-    <td class="td-xp"><input type="number" class="comp-xp" min="0" value="${xpVal}" oninput="calcXP()"></td>
+    <td class="td-xp"><input type="number" class="comp-xp computed" min="0" value="${xpVal}" readonly></td>
     <td class="td-btn no-print"><button class="ibtnd" onclick="removeRow('${id}')">✕</button></td>
   `;
   g('comp-tbody').appendChild(tr);
@@ -572,6 +725,12 @@ function refreshSelectedCompetenceCosts(){
   updateFaiblessesImmunites();
 }
 
+function refreshMagicAccessAfterCompetenceChange(){
+  if(refreshingCompetenceCosts)return;
+  if(typeof renderCarriereInfo==='function')renderCarriereInfo(getSelectedCarriere());
+  if(typeof refreshAllSortRows==='function')refreshAllSortRows();
+}
+
 function onCompSel(sel,rowId,overrideXP,overrideFreq,overrideCount,skipRefresh=false){
   const row=g(rowId);
   const xpIn=row.querySelector('.comp-xp');
@@ -588,6 +747,7 @@ function onCompSel(sel,rowId,overrideXP,overrideFreq,overrideCount,skipRefresh=f
     updateFaiblessesImmunites();
     calcXP();
     if(!skipRefresh)refreshSelectedCompetenceCosts();
+    refreshMagicAccessAfterCompetenceChange();
     return;
   }
 
@@ -601,18 +761,19 @@ function onCompSel(sel,rowId,overrideXP,overrideFreq,overrideCount,skipRefresh=f
   const meta=getCompetenceMeta(nom, cat);
   const maxCumulable=parseInt(maxRaw,10)||getCumulableMax(nom, cat);
   const firstFree=!gratuit && firstFreeCompetenceApplies(nom,rowId);
-  const firstXp=gratuit || firstFree?0:xpFinalCompetence(xpRaw,cat,gratuit,rowId,nom);
+  const firstXp=gratuit?getFreeCompetenceFirstXp(nom,cat,rowId):(firstFree?0:xpFinalCompetence(xpRaw,cat,gratuit,rowId,nom));
   const extraXp=gratuit || firstFree?getExtraXpForFreeCompetence(nom,baseXpRaw,rowId,true):firstXp;
   const count=overrideCount!==undefined&&overrideCount!==''?overrideCount:'1';
 
   xpIn.dataset.firstXp=String(firstXp);
   xpIn.dataset.extraXp=String(extraXp);
   if(countSel)setCompCountOptions(countSel,maxCumulable,count);
-  xpIn.value=overrideXP!==undefined&&overrideXP!==''?overrideXP:firstXp+(Math.max(0,(parseInt(countSel?.value,10)||1)-1)*extraXp);
+  xpIn.value=firstXp+(Math.max(0,(parseInt(countSel?.value,10)||1)-1)*extraXp);
   if(freqIn)freqIn.value=overrideFreq!==undefined&&overrideFreq!==''?overrideFreq:(meta.frequence||'');
 
   calcXP();
   calcStats();
   updateFaiblessesImmunites();
   if(!skipRefresh)refreshSelectedCompetenceCosts();
+  refreshMagicAccessAfterCompetenceChange();
 }
