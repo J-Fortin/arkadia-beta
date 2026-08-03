@@ -225,6 +225,11 @@ export const excludedCompetenceNames = new Set([
   "test"
 ]);
 
+export const manualRacialFreeCompetences = [
+  { race: "haut-elfe", nom: "Noblesse", source: "Codex p. 38" },
+  { race: "haut-elfe", nom: "Lecture et \u00e9criture (Elfique)", source: "Codex p. 38" }
+];
+
 export const firstFreeCompetenceRules = {
   barbare: [
     { names: ["bravoure"] }

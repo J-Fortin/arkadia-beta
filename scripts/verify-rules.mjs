@@ -348,6 +348,8 @@ assertRacialFree(options, "elfe-gris", "Haute magie", 3);
 assertRacialFree(options, "elfe-gris", "Resistance magique", 6);
 assertRacialFree(options, "elfe-lunaire", "Resistance magique", 6);
 assertRacialFree(options, "elfe-lunaire", "Resistance mentale", 6);
+assertRacialFree(options, "haut-elfe", "Noblesse", 3);
+assertRacialFree(options, "haut-elfe", "Lecture et ecriture Elfique", 2);
 assert(competencesJs.includes("racialCompetenceCareerAllows"), "Les avantages raciaux gratuits doivent etre filtres selon l'acces de carriere.");
 const duplicateCompetenceChoices = options.races.flatMap((race) => {
   return options.carrieres.map((carriere) => {

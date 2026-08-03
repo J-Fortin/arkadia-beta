@@ -9,6 +9,7 @@ import {
   excludedRaceValues,
   excludedCompetenceNames,
   getClientCodexRules,
+  manualRacialFreeCompetences,
   mixedCareerSources,
   raceChanceOverrides,
   raceStatOverrides,
@@ -636,6 +637,24 @@ export async function getDatabaseOptions() {
         cumulableMax: getCodexCumulableMax(nom)
       });
     }
+
+    manualRacialFreeCompetences.forEach(({ race, nom }) => {
+      const baseXp = baseXpByName.get(normalizedCompetenceName(nom));
+
+      if (!race || !isNameValue(nom) || baseXp === undefined) return;
+      if (isExcludedRaceValue(race)) return;
+
+      competences.push({
+        nom,
+        xp: 0,
+        baseXp,
+        cat: "Raciale",
+        race,
+        gratuit: true,
+        note: "",
+        cumulableMax: getCodexCumulableMax(nom)
+      });
+    });
 
   }
 
