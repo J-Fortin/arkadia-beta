@@ -260,6 +260,49 @@ function calculatedSpentXpWithSpecialRows() {
   return Number(elements["xp-dep"].value);
 }
 
+function totalXpWithSeasonPass(events, checked) {
+  const elements = {
+    "xp-total": input(String(events)),
+    "xp-depart": input("10"),
+    "xp-dep": input("0"),
+    "xp-dispo": input("0"),
+    "xp-bar": { style: {} },
+    "xp-lbl-d": { textContent: "" },
+    "xp-lbl-t": { textContent: "" },
+    "passe-saison": { checked },
+    "passe-saison-hint": { textContent: "" },
+    "alert-passe-saison": { innerHTML: "", classList: { toggle: () => {} } }
+  };
+  const calcContext = vm.createContext({
+    document: {
+      querySelectorAll: () => []
+    },
+    g: (id) => elements[id] || null,
+    v: (id) => elements[id]?.value || "",
+    sv: (id, value) => {
+      if (elements[id]) elements[id].value = String(value);
+    },
+    getDatabaseRaceOption: () => null,
+    getArmorRules: () => ({ maxCombinedPoints: 13 }),
+    getRaceChanceMax: () => 3,
+    selectedCompetenceEntries: () => [],
+    updateScenarioResources: () => {},
+    alert: () => {},
+    eventCountBaseline: 0,
+    seasonPassBaseline: false,
+    chanceCountBaseline: 0,
+    lastEventAbuseWarning: "",
+    lastChanceAbuseWarning: ""
+  });
+
+  vm.runInContext(calculsJs, calcContext, { filename: "ui/caracteristiques/calculs.js" });
+  calcContext.calcXP();
+  return {
+    total: Number(elements["xp-dispo"].value),
+    label: elements["xp-lbl-t"].textContent
+  };
+}
+
 assert(calculsJs.includes("const MAX_XP_EVENEMENTS = 150"), "La limite de 150 XP d'evenements doit etre declaree.");
 assert(calculsJs.includes("Math.min(getEventXpRaw(),MAX_XP_EVENEMENTS)"), "Les XP d'evenements doivent etre plafonnes a 150.");
 assert(sauvegardeJs.includes("xpEvenements:getEventXpUsed()"), "L'export doit sauvegarder les XP d'evenements plafonnes.");
@@ -269,9 +312,15 @@ assert(calculsJs.includes("#special-comp-tbody") && calculsJs.includes("#special
 assert(/special-comp-note[^>]+oninput="calcXP\(\)"/.test(specialsJs), "La note des competences speciales doit recalculer les XP.");
 assert(/special-sort-note[^>]+oninput="calcXP\(\)"/.test(specialsJs), "La note des sorts speciaux doit recalculer les XP.");
 assert(calculatedSpentXpWithSpecialRows() === 23, "Les XP des competences speciales et sorts speciaux doivent alimenter les XP depenses.");
+const seasonPassBelowCap = totalXpWithSeasonPass(49, true);
+const seasonPassAtCap = totalXpWithSeasonPass(50, true);
+assert(seasonPassBelowCap.total === 159 && seasonPassBelowCap.label.includes("passe saison 2 XP"), "La passe saison doit ajouter 2 XP aux XP generaux.");
+assert(seasonPassAtCap.total === 160 && seasonPassAtCap.label.includes("plafonnés à 150 XP généraux"), "La passe saison doit respecter la limite generale de 150 XP.");
 assert(html.includes("ressourcesEtNotes/ressources.js"), "Le calcul automatique des ressources doit etre charge.");
 assert(html.includes('id="ressources"') && html.includes("readonly"), "Les ressources par scenario doivent etre un champ calcule.");
+assert(html.includes('id="passe-saison"') && html.includes("alert-passe-saison"), "La passe saison doit etre disponible avec une alerte animation.");
 assert(calculsJs.includes("updateScenarioResources"), "Les ressources doivent etre recalculees avec les stats.");
+assert(calculsJs.includes("getGeneralXpUsed") && calculsJs.includes("XP_PASSE_SAISON = 2"), "La passe saison doit ajouter 2 XP dans la limite generale.");
 assert(ressourcesJs.includes("updateScenarioResources") && ressourcesJs.includes("touche a tout"), "Le calcul des ressources doit gerer les competences et Touche a tout.");
 assert(typeof calculateArmorValues === "function", "Le calculateur d'armure doit etre testable.");
 assert(options.rules?.armor?.maxCombinedPoints === 13, "Le maximum PV + armure doit etre expose a 13.");
@@ -322,6 +371,7 @@ for (const excludedRace of excludedRaceValues) {
     assert(!(accessRules[ruleName] || []).includes(excludedRace), `${ruleName} ne doit pas contenir ${excludedRace}.`);
   });
 }
+assert((options.immunitesParRace?.gitan || []).some((effect) => normalizeCompetenceKey(effect) === "maledictions"), "Gitan doit etre immunise aux maledictions.");
 assert(options.religions.some((option) => option.value === "Esprit de la guerre (Odann)"), "Les variantes des Esprits de la guerre doivent etre creees.");
 assert(!options.religions.some((option) => option.value === "Esprits de la guerre"), "Le choix generique Esprits de la guerre ne doit pas etre expose sans ecoles.");
 assert(options.ecolesParDivinite?.["Esprit de la guerre (Khurn)"]?.includes("Voie maudite"), "Khurn doit donner acces a la Voie maudite.");
@@ -350,6 +400,7 @@ assertRacialFree(options, "elfe-lunaire", "Resistance magique", 6);
 assertRacialFree(options, "elfe-lunaire", "Resistance mentale", 6);
 assertRacialFree(options, "haut-elfe", "Noblesse", 3);
 assertRacialFree(options, "haut-elfe", "Lecture et ecriture Elfique", 2);
+assertRacialFree(options, "gitan", "Arme de jet", 3);
 assert(competencesJs.includes("racialCompetenceCareerAllows"), "Les avantages raciaux gratuits doivent etre filtres selon l'acces de carriere.");
 const duplicateCompetenceChoices = options.races.flatMap((race) => {
   return options.carrieres.map((carriere) => {
@@ -475,7 +526,9 @@ const sample = {
     typeArmure: "Metal rigide complet",
     piecesArmure: { zones: fullPlateZones, helmet: "metal-rigide", gorget: "metal-rigide" },
     chancesActuelles: "3",
-    chancesMax: "3"
+    chancesMax: "3",
+    passeSaison: "oui",
+    xpGeneraux: "5"
   },
   competences: [{ nom: "Falsification", freq: "", count: "1", xp: "0" }],
   sorts: [],
@@ -501,5 +554,7 @@ assert(parsed.personnage.piecesArmure?.zones?.torse === "metal-rigide", "L'impor
 assert(parsed.personnage.piecesArmure?.helmet === "metal-rigide", "L'import Excel doit restaurer le casque.");
 assert(parsed.personnage.piecesArmure?.gorget === "metal-rigide", "L'import Excel doit restaurer le gorget.");
 assert(parsed.personnage.bonusArmure === undefined, "L'export Excel ne doit plus ecrire de bonus d'armure.");
+assert(parsed.personnage.passeSaison === sample.personnage.passeSaison, "L'import Excel doit restaurer la passe saison.");
+assert(parsed.personnage.xpGeneraux === sample.personnage.xpGeneraux, "L'import Excel doit restaurer les XP generaux.");
 
 console.log("Verification Arkadia OK");

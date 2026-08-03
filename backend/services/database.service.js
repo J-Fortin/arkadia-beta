@@ -9,6 +9,7 @@ import {
   excludedRaceValues,
   excludedCompetenceNames,
   getClientCodexRules,
+  manualRaceImmunities,
   manualRacialFreeCompetences,
   mixedCareerSources,
   raceChanceOverrides,
@@ -554,6 +555,11 @@ export async function getDatabaseOptions() {
       addMappedListValue(immunitesParCompetence, competence, canonicalText(cleanListValue(immunitySheet.cell(row, 13))));
     }
   }
+
+  manualRaceImmunities.forEach(({ race, immunite }) => {
+    if (!race || !immunite || isExcludedRaceValue(race)) return;
+    addMappedListValue(immunitesParRace, race, canonicalText(immunite));
+  });
 
   const raceValueSet = new Set(uniqueOptions(races).map((option) => option.value));
   const carriereValueSet = new Set(uniqueOptions(carrieres).map((option) => option.value));

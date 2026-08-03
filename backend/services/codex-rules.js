@@ -227,7 +227,12 @@ export const excludedCompetenceNames = new Set([
 
 export const manualRacialFreeCompetences = [
   { race: "haut-elfe", nom: "Noblesse", source: "Codex p. 38" },
-  { race: "haut-elfe", nom: "Lecture et \u00e9criture (Elfique)", source: "Codex p. 38" }
+  { race: "haut-elfe", nom: "Lecture et \u00e9criture (Elfique)", source: "Codex p. 38" },
+  { race: "gitan", nom: "Arme de jet", source: "Codex p. 47" }
+];
+
+export const manualRaceImmunities = [
+  { race: "gitan", immunite: "Mal\u00e9dictions", source: "Codex p. 47" }
 ];
 
 export const firstFreeCompetenceRules = {

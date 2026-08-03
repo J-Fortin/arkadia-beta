@@ -302,8 +302,10 @@ function parseCharacterText(text, sourceLabel) {
     chancesMax: valueFromPairs(pairs, "personnage", ["Chances maximum", "Chances max"]),
     faiblesses: valueFromPairs(pairs, "personnage", ["Faiblesses"]),
     immunites: valueFromPairs(pairs, "personnage", ["Immunites", "Immunités"]),
+    passeSaison: ouiNon(valueFromPairs(pairs, "personnage", ["Passe saison"]) || valueFromPairs(pairs, "xp", ["Passe saison"])),
     evenementsParticipes: valueFromPairs(pairs, "xp", ["Evenements participes", "Événements participés"]),
     xpEvenements: valueFromPairs(pairs, "xp", ["XP evenements", "XP événements"]),
+    xpGeneraux: valueFromPairs(pairs, "xp", ["XP generaux", "XP généraux"]),
     ressources: valueFromPairs(pairs, "personnage", ["Ressources", "Ressources par scenario"]),
     titres: valueFromPairs(pairs, "personnage", ["Titres / capacites", "Titres / capacités", "Titres"]),
     notes: valueFromPairs(pairs, "personnage", ["Notes"]),
@@ -311,7 +313,7 @@ function parseCharacterText(text, sourceLabel) {
   };
 
   const data = {
-    v: "2.8",
+    v: "2.9",
     joueur,
     personnage,
     audit: {

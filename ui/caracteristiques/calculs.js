@@ -1,6 +1,7 @@
 ﻿// ===================== XP + STATS =====================
 const XP_PAR_EVENEMENT = 3;
 const MAX_XP_EVENEMENTS = 150;
+const XP_PASSE_SAISON = 2;
 
 function getEventCount(){
   return parseInt(v('xp-total'),10)||0;
@@ -18,8 +19,24 @@ function getEventXpUsed(){
   return Math.min(getEventXpRaw(),MAX_XP_EVENEMENTS);
 }
 
+function getSeasonPassChecked(){
+  return Boolean(g('passe-saison')?.checked);
+}
+
+function getSeasonPassXpRaw(){
+  return getSeasonPassChecked()?XP_PASSE_SAISON:0;
+}
+
+function getGeneralXpRaw(){
+  return getEventXpRaw()+getSeasonPassXpRaw();
+}
+
+function getGeneralXpUsed(){
+  return Math.min(getGeneralXpRaw(),MAX_XP_EVENEMENTS);
+}
+
 function getTotalXpLimit(){
-  return getRaceBaseXp()+getEventXpUsed();
+  return getRaceBaseXp()+getGeneralXpUsed();
 }
 
 function calcXP(){
@@ -39,26 +56,28 @@ function calcXP(){
     if(hasSpecial)dep+=parseInt(row.querySelector('.special-sort-xp')?.value)||0;
   });
   const eventCount=getEventCount();
-  const rawEventXP=getEventXpRaw();
+  const rawGeneralXP=getGeneralXpRaw();
   const total=getTotalXpLimit();
   const dispo=total-dep;
   sv('xp-dep',dep);sv('xp-dispo',dispo);
   const pct=total>0?Math.min(100,(dep/total)*100):0;
   g('xp-bar').style.width=pct+'%';
   g('xp-lbl-d').textContent=dep+' dépensés';
-  const capLabel=rawEventXP>MAX_XP_EVENEMENTS?` plafonnés à ${MAX_XP_EVENEMENTS} XP`:'';
-  g('xp-lbl-t').textContent=`${total} total (${eventCount} événements × ${XP_PAR_EVENEMENT} XP${capLabel})`;
+  const passLabel=getSeasonPassChecked()?` + passe saison ${XP_PASSE_SAISON} XP`:'';
+  const capLabel=rawGeneralXP>MAX_XP_EVENEMENTS?` plafonnés à ${MAX_XP_EVENEMENTS} XP généraux`:'';
+  g('xp-lbl-t').textContent=`${total} total (${eventCount} événements × ${XP_PAR_EVENEMENT} XP${passLabel}${capLabel})`;
   updateEventAbuseWarning();
+  updateSeasonPassWarning();
 }
 
 function getEventAbuseWarning(){
   const current=getEventCount();
   const increase=current-eventCountBaseline;
-  const rawEventXP=getEventXpRaw();
+  const rawGeneralXP=getGeneralXpRaw();
   const warnings=[];
 
-  if(rawEventXP>MAX_XP_EVENEMENTS){
-    warnings.push(`Les événements donnent ${rawEventXP} XP, mais le maximum utilisable est ${MAX_XP_EVENEMENTS} XP. La limite totale est donc XP de race (${getRaceBaseXp()}) + ${MAX_XP_EVENEMENTS} XP.`);
+  if(rawGeneralXP>MAX_XP_EVENEMENTS){
+    warnings.push(`Les XP généraux donnent ${rawGeneralXP} XP, mais le maximum utilisable est ${MAX_XP_EVENEMENTS} XP. La limite totale est donc XP de race (${getRaceBaseXp()}) + ${MAX_XP_EVENEMENTS} XP.`);
   }
 
   if(increase>1){
@@ -66,6 +85,59 @@ function getEventAbuseWarning(){
   }
 
   return warnings.join(' ');
+}
+
+function getSeasonPassWarning(){
+  if(!getSeasonPassChecked())return '';
+  const state=seasonPassBaseline?'déjà présente dans la fiche chargée':'cochée sur cette fiche';
+  const capNote=getGeneralXpRaw()>MAX_XP_EVENEMENTS
+    ? ` Le plafond général de ${MAX_XP_EVENEMENTS} XP est déjà atteint; la passe saison ne peut pas dépasser cette limite.`
+    : '';
+  return `Passe saison ${state} : +${XP_PASSE_SAISON} XP généraux à valider par l'animation. Utilisation unique par personnage.${capNote}`;
+}
+
+function updateSeasonPassWarning(){
+  const alertEl=g('alert-passe-saison');
+  const hintEl=g('passe-saison-hint');
+  const warning=getSeasonPassWarning();
+
+  if(hintEl){
+    hintEl.textContent=seasonPassBaseline
+      ? 'Passe saison déjà appliquée sur la fiche chargée.'
+      : 'Utilisation unique par personnage.';
+  }
+
+  if(!alertEl)return;
+  alertEl.innerHTML=warning?`⚠ <b>Vérification animation :</b> ${warning}`:'';
+  alertEl.classList.toggle('show',Boolean(warning));
+}
+
+function parseSeasonPassValue(value){
+  const normalized=String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .trim();
+  return ['1','true','oui','yes','coche','checked'].includes(normalized);
+}
+
+function setSeasonPassState(checked=false, locked=false){
+  const el=g('passe-saison');
+  seasonPassBaseline=Boolean(locked && checked);
+  if(el){
+    el.checked=Boolean(checked);
+    el.disabled=Boolean(seasonPassBaseline);
+  }
+  updateSeasonPassWarning();
+}
+
+function onSeasonPassChange(){
+  const el=g('passe-saison');
+  if(seasonPassBaseline && el){
+    el.checked=true;
+    el.disabled=true;
+  }
+  calcXP();
 }
 
 function getChanceAbuseWarning(){

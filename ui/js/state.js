@@ -3,6 +3,7 @@ let pvBase=3,magiePts=0;
 let compRows=0,sortRows=0,evRows=0,specialCompRows=0,specialSortRows=0;
 let eventCountBaseline=0;
 let lastEventAbuseWarning='';
+let seasonPassBaseline=false;
 let chanceCountBaseline=0;
 let lastChanceAbuseWarning='';
 

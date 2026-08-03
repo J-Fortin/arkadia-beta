@@ -476,6 +476,7 @@ function buildSheet(data) {
     ["Chances maximum", personnage.chancesMax],
     ["Faiblesses", personnage.faiblesses],
     ["Immunités", personnage.immunites],
+    ["Passe saison", personnage.passeSaison],
     ["Ressources", personnage.ressources],
     ["Titres / capacités", personnage.titres],
     ["Notes", personnage.notes],
@@ -486,7 +487,8 @@ function buildSheet(data) {
   block = labelValueRows(row, "XP", [
     ["Événements participés", audit.eventCountCurrent ?? personnage.evenementsParticipes],
     ["XP événements", personnage.xpEvenements],
-    ["Avertissement anti-abus", [audit.eventAbuseWarning, audit.chanceAbuseWarning].filter(Boolean).join(" | ")]
+    ["XP généraux", personnage.xpGeneraux ?? personnage.xpEvenements],
+    ["Avertissement anti-abus", [audit.eventAbuseWarning, audit.seasonPassWarning, audit.chanceAbuseWarning].filter(Boolean).join(" | ")]
   ]);
   rows.push(...block.rows); row = block.nextRow;
 
@@ -582,7 +584,7 @@ export async function parseCharacterWorkbook(buffer) {
     return next ? sections.get(next) : lastRow + 1;
   }
 
-  const data = { v: "2.8", joueur: {}, personnage: {}, audit: {}, competences: [], sorts: [], competencesSpeciales: [], sortsSpeciaux: [], evenements: [] };
+  const data = { v: "2.9", joueur: {}, personnage: {}, audit: {}, competences: [], sorts: [], competencesSpeciales: [], sortsSpeciaux: [], evenements: [] };
 
   readLabelBlock(rows, sections.get("Informations du joueur"), sectionEnd("Informations du joueur"), {
     "Nom": "nom",
@@ -625,6 +627,7 @@ export async function parseCharacterWorkbook(buffer) {
     "Chances maximum": "chancesMax",
     "Faiblesses": "faiblesses",
     "Immunités": "immunites",
+    "Passe saison": "passeSaison",
     "Ressources": "ressources",
     "Titres / capacités": "titres",
     "Notes": "notes",
@@ -642,7 +645,8 @@ export async function parseCharacterWorkbook(buffer) {
 
   readLabelBlock(rows, sections.get("XP"), sectionEnd("XP"), {
     "Événements participés": "evenementsParticipes",
-    "XP événements": "xpEvenements"
+    "XP événements": "xpEvenements",
+    "XP généraux": "xpGeneraux"
   }, data.personnage);
 
   readLabelBlock(rows, sections.get("XP"), sectionEnd("XP"), {

@@ -250,6 +250,11 @@
   <div class="row">
     <div class="col"><label>Ressources par scénario (trait racial, carrière)</label><textarea id="ressources" rows="3" class="computed" readonly placeholder="Aucune ressource automatique"></textarea></div>
   </div>
+  <div class="season-pass-box">
+    <label class="season-pass-check"><input id="passe-saison" type="checkbox" onchange="onSeasonPassChange()"> Passe saison (+2 XP généraux)</label>
+    <div class="field-hint" id="passe-saison-hint">Utilisation unique par personnage.</div>
+  </div>
+  <div id="alert-passe-saison" class="alert"></div>
   <hr class="div">
   <div class="stitle" style="margin-top:.8rem">Titres / Races avancées / Capacités spéciales / Notes & Background complet</div>
   <textarea id="titres" rows="5" placeholder="Titres, races avancées, capacités spéciales, historique complet et notes de jeu de rôle..."></textarea>

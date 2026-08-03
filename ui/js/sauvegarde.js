@@ -1,13 +1,14 @@
 // ===================== SAVE / LOAD =====================
 function collecterFiche(){
   const titresEtNotes=v('titres');
+  const passeSaison=typeof getSeasonPassChecked==='function' && getSeasonPassChecked();
   const alertesVisibles=Array.from(document.querySelectorAll('.alert.show'))
     .map(element=>element.textContent.trim())
     .filter(Boolean);
-  const data={v:'2.8',
+  const data={v:'2.9',
     joueur:{nom:v('j-nom'),naiss:v('j-naiss'),premier:v('j-premier'),tel:v('j-tel'),email:v('j-email'),allergies:v('j-allergies'),u1nom:v('u1-nom'),u1tel:v('u1-tel'),u2nom:v('u2-nom'),u2tel:v('u2-tel')},
-    personnage:{nom:v('p-nom'),premier:v('p-premier'),race:v('race'),raceVariant:v('race-variant'),carriere:v('carriere'),moralite:v('moralite'),religion:v('religion'),religion2:v('religion-2'),ecole:v('ecole'),ecole2:v('ecole-2'),maison:v('maison'),noblesse:v('noblesse'),ptsArmure:v('pts-armure'),typeArmure:v('type-armure'),piecesArmure:collectArmorPieces(),chancesActuelles:v('chances-actuelles'),chancesMax:getRaceChanceMax(),faiblesses:v('faiblesses'),immunites:v('immunites'),evenementsParticipes:v('xp-total'),xpEvenements:getEventXpUsed(),xpTotal:v('xp-total'),ressources:v('ressources'),titres:titresEtNotes,notes:titresEtNotes,bg:v('bg')},
-    audit:{eventCountBaseline,eventCountCurrent:parseInt(v('xp-total'))||0,eventAbuseWarning:getEventAbuseWarning(),chanceCountBaseline,chanceCountCurrent:parseInt(v('chances-actuelles'))||0,chanceMax:getRaceChanceMax(),chanceAbuseWarning:getChanceAbuseWarning(),alerts:alertesVisibles},
+    personnage:{nom:v('p-nom'),premier:v('p-premier'),race:v('race'),raceVariant:v('race-variant'),carriere:v('carriere'),moralite:v('moralite'),religion:v('religion'),religion2:v('religion-2'),ecole:v('ecole'),ecole2:v('ecole-2'),maison:v('maison'),noblesse:v('noblesse'),ptsArmure:v('pts-armure'),typeArmure:v('type-armure'),piecesArmure:collectArmorPieces(),chancesActuelles:v('chances-actuelles'),chancesMax:getRaceChanceMax(),faiblesses:v('faiblesses'),immunites:v('immunites'),evenementsParticipes:v('xp-total'),xpEvenements:getEventXpUsed(),xpGeneraux:typeof getGeneralXpUsed==='function'?getGeneralXpUsed():getEventXpUsed(),passeSaison:passeSaison?'oui':'non',xpTotal:v('xp-total'),ressources:v('ressources'),titres:titresEtNotes,notes:titresEtNotes,bg:v('bg')},
+    audit:{eventCountBaseline,eventCountCurrent:parseInt(v('xp-total'))||0,eventAbuseWarning:getEventAbuseWarning(),seasonPassBaseline,seasonPassCurrent:passeSaison,seasonPassWarning:typeof getSeasonPassWarning==='function'?getSeasonPassWarning():'',chanceCountBaseline,chanceCountCurrent:parseInt(v('chances-actuelles'))||0,chanceMax:getRaceChanceMax(),chanceAbuseWarning:getChanceAbuseWarning(),alerts:alertesVisibles},
     competences:[],sorts:[],competencesSpeciales:[],sortsSpeciaux:[],evenements:[]
   };
 
@@ -145,7 +146,13 @@ function charger(d){
     chanceCountBaseline=parseInt(v('chances-actuelles'))||0;
     sv('xp-total',p.evenementsParticipes ?? normaliserEvenementsParticipes(p.xpTotal,d.v));sv('ressources',p.ressources);
     eventCountBaseline=parseInt(v('xp-total'))||0;
+    if(typeof setSeasonPassState==='function'){
+      const passValue=p.passeSaison ?? p.seasonPass ?? d.audit?.seasonPassCurrent ?? false;
+      setSeasonPassState(parseSeasonPassValue(passValue),parseSeasonPassValue(passValue));
+    }
     sv('titres',fusionnerTitresEtNotes(p.titres,p.notes));sv('bg',p.bg);
+  }else if(typeof setSeasonPassState==='function'){
+    setSeasonPassState(false,false);
   }
   g('comp-tbody').innerHTML='';compRows=0;
   (d.competences||[]).forEach(c=>addComp(c.nom,c.xp,c.freq,c.count||'1'));
