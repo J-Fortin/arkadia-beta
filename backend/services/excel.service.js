@@ -199,7 +199,7 @@ function parseSharedStringsFromZip(zip) {
   }
 }
 
-function parseSheetRows(sheetXml) {
+function parseSheetRows(sheetXml, sharedStrings = []) {
   const rows = new Map();
 
   for (const rowMatch of sheetXml.matchAll(/<row\b[^>]*\br="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
@@ -210,17 +210,49 @@ function parseSheetRows(sheetXml) {
       const attrs = cellMatch[1];
       const body = cellMatch[2];
       const ref = attrs.match(/\br="([A-Z]+)\d+"/)?.[1];
+      const type = attrs.match(/\bt="([^"]+)"/)?.[1] || "";
       if (!ref) continue;
 
-      const text = body.match(/<t\b[^>]*>([\s\S]*?)<\/t>/)?.[1];
-      const number = body.match(/<v>([\s\S]*?)<\/v>/)?.[1];
-      row[ref] = unxml(text ?? number ?? "");
+      const raw = body.match(/<v>([\s\S]*?)<\/v>/)?.[1] || "";
+      const inlineText = body.match(/<t\b[^>]*>([\s\S]*?)<\/t>/)?.[1] || "";
+      let value = raw;
+
+      if (type === "s") value = sharedStrings[Number(raw)] || "";
+      if (type === "inlineStr") value = inlineText;
+
+      row[ref] = unxml(value);
     }
 
     rows.set(rowNumber, row);
   }
 
   return rows;
+}
+
+function foldLabel(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9#]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const generatedSectionNames = [
+  "Informations du joueur",
+  "Personnage",
+  "XP",
+  "Comp\u00e9tences",
+  "Sorts",
+  "Comp\u00e9tences sp\u00e9ciales",
+  "Sorts sp\u00e9ciaux",
+  "Historique des \u00e9v\u00e9nements"
+];
+
+function canonicalGeneratedSectionName(value) {
+  const folded = foldLabel(value);
+  return generatedSectionNames.find((name) => foldLabel(name) === folded) || "";
 }
 
 function parseSheetCells(sheetXml, sharedStrings) {
@@ -365,17 +397,20 @@ function findSectionRows(rows) {
   const sections = new Map();
 
   for (const [rowNumber, row] of rows) {
-    if (row.A) sections.set(row.A, rowNumber);
+    const sectionName = canonicalGeneratedSectionName(row.A);
+    if (sectionName) sections.set(sectionName, rowNumber);
   }
 
   return sections;
 }
 
 function readLabelBlock(rows, startRow, endRow, mapping, target) {
+  const normalizedMapping = Object.fromEntries(Object.entries(mapping).map(([label, key]) => [foldLabel(label), key]));
+
   for (let rowNumber = startRow + 1; rowNumber < endRow; rowNumber++) {
     const row = rows.get(rowNumber);
     if (!row?.A) continue;
-    const key = mapping[row.A];
+    const key = normalizedMapping[foldLabel(row.A)];
     if (key) target[key] = row.B || "";
   }
 }
@@ -385,7 +420,7 @@ function readTable(rows, startRow, endRow, mapper) {
 
   for (let rowNumber = startRow + 2; rowNumber < endRow; rowNumber++) {
     const row = rows.get(rowNumber);
-    if (!row?.A || row.A === "Aucune donnee" || row.A === "Aucune donnée") continue;
+    if (!row?.A || foldLabel(row.A) === "aucune donnee") continue;
     items.push(mapper(row));
   }
 
@@ -561,7 +596,7 @@ export async function parseCharacterWorkbook(buffer) {
   const zip = readZipEntries(buffer);
   const sheetXml = zip.text("xl/worksheets/sheet1.xml");
   const sharedStrings = parseSharedStringsFromZip(zip);
-  const rows = parseSheetRows(sheetXml);
+  const rows = parseSheetRows(sheetXml, sharedStrings);
   const sections = findSectionRows(rows);
   if (!sections.has("Informations du joueur")) {
     return parseLegacyArkadiaWorkbook(sheetXml, sharedStrings);

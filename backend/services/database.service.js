@@ -9,6 +9,7 @@ import {
   excludedRaceValues,
   excludedCompetenceNames,
   getClientCodexRules,
+  manualCareerCompetenceXpOverrides,
   manualGeneralCompetences,
   manualRaceImmunities,
   manualRacialCompetenceRemovals,
@@ -155,7 +156,8 @@ function getBonusTarget(value) {
 }
 
 function cleanCompetenceName(value) {
-  return canonicalText(value).replace(/\s*\(Bonus\s+[^)]*\)?\s*$/i, "").trim();
+  const withoutBonus = canonicalText(value).replace(/\s*\(Bonus\s+[^)]*\)?\s*$/i, "").trim();
+  return canonicalText(withoutBonus);
 }
 
 function normalizedCompetenceName(value) {
@@ -177,6 +179,18 @@ function isRemovedRacialCompetence(option) {
     return removal.race === option.race
       && normalizedCompetenceName(removal.nom) === normalizedCompetenceName(option.nom);
   });
+}
+
+function manualCareerCompetenceXpOverride(option) {
+  if (!option?.carriere) return null;
+
+  const override = manualCareerCompetenceXpOverrides.find((entry) => {
+    return entry.carriere === option.carriere
+      && normalizedCompetenceName(entry.nom) === normalizedCompetenceName(option.nom);
+  });
+  const xp = Number(override?.xp);
+
+  return Number.isFinite(xp) && xp > 0 ? xp : null;
 }
 
 function isNameValue(value) {
@@ -627,6 +641,12 @@ export async function getDatabaseOptions() {
         option.cat = isBonus ? `Spécial - ${targetLabel}` : `Carrière - ${sourceLabel}`;
         option.carriere = targetValue;
         option.note = isBonus && !gratuit ? "bonus de carrière" : "";
+      }
+
+      const careerXpOverride = manualCareerCompetenceXpOverride(option);
+      if (careerXpOverride !== null) {
+        option.xp = careerXpOverride;
+        option.baseXp = careerXpOverride;
       }
 
       competences.push(option);

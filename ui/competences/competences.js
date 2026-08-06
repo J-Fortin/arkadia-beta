@@ -669,6 +669,19 @@ function onCompCount(sel,rowId){
   updateCompXPFromCount(row);
 }
 
+function addImportedCompetenceOption(sel,nomVal='',xpVal='',countVal='1'){
+  if(!sel||!nomVal)return null;
+
+  const xp=parseXP(xpVal);
+  const max=Math.max(1,parseInt(countVal,10)||1);
+  const option=document.createElement('option');
+  option.value=`${nomVal}|${xp}||Import Excel|${max}|${xp}`;
+  option.textContent=`Import Excel · ${nomVal} — ${xp} XP`;
+  sel.appendChild(option);
+  sel.value=option.value;
+  return option;
+}
+
 function addComp(nomVal='',xpVal='',freqVal='',countVal='1'){
   compRows++;
   const id='comp-'+compRows;
@@ -686,12 +699,19 @@ function addComp(nomVal='',xpVal='',freqVal='',countVal='1'){
   rebuildCompSelect(sel);
 
   if(nomVal){
+    const target=normalizeCompetenceKey(nomVal);
     let found=false;
     for(let opt of sel.options){
       if(opt.value.startsWith(nomVal+'|')){sel.value=opt.value;found=true;break;}
     }
     if(!found){
-      onCompSel(sel,id,'','','1');
+      for(let opt of sel.options){
+        if(normalizeCompetenceKey(opt.value.split('|')[0]||'')===target){sel.value=opt.value;found=true;break;}
+      }
+    }
+    if(!found){
+      addImportedCompetenceOption(sel,nomVal,xpVal,countVal);
+      onCompSel(sel,id,xpVal,freqVal,countVal);
       return;
     }
     onCompSel(sel,id,undefined,freqVal,countVal);
@@ -725,6 +745,10 @@ function refreshSelectedCompetenceCosts(){
     if(match){
       sel.value=match.value;
       onCompSel(sel,tr.id,undefined,freqVal,countVal,true);
+    } else {
+      const xpVal=tr.querySelector('.comp-xp')?.value || '0';
+      addImportedCompetenceOption(sel,selectedName,xpVal,countVal);
+      onCompSel(sel,tr.id,xpVal,freqVal,countVal,true);
     }
   });
 
@@ -779,6 +803,12 @@ function onCompSel(sel,rowId,overrideXP,overrideFreq,overrideCount,skipRefresh=f
   if(countSel)setCompCountOptions(countSel,maxCumulable,count);
   xpIn.value=firstXp+(Math.max(0,(parseInt(countSel?.value,10)||1)-1)*extraXp);
   if(freqIn)freqIn.value=overrideFreq!==undefined&&overrideFreq!==''?overrideFreq:(meta.frequence||'');
+  if(overrideXP!==undefined&&overrideXP!==''){
+    const importedXp=parseXP(overrideXP);
+    xpIn.value=importedXp;
+    xpIn.dataset.firstXp=String(importedXp);
+    xpIn.dataset.extraXp='0';
+  }
 
   calcXP();
   calcStats();

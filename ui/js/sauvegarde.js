@@ -92,6 +92,16 @@ async function lire(event){
   const extension=file.name.toLowerCase().split('.').pop();
   const backendFormats=new Set(['xlsx','xlsm','pdf','jpg','jpeg','png']);
 
+  if(extension==='xlsx'||extension==='xlsm'){
+    try{
+      charger(await importerFicheExcel(file));
+    }catch(error){
+      console.error(error);
+      alert(error?.message || "Fichier Excel invalide ou backend non disponible.");
+    }
+    return;
+  }
+
   if(backendFormats.has(extension)){
     try{
       charger(await importerFiche(file));

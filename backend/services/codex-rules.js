@@ -244,6 +244,10 @@ export const manualGeneralCompetences = [
   { nom: "Ferveur divine", source: "Codex p. 43" }
 ];
 
+export const manualCareerCompetenceXpOverrides = [
+  { carriere: "inquisiteur", nom: "Abjuration", xp: 6, source: "Codex p. 87" }
+];
+
 export const firstFreeCompetenceRules = {
   barbare: [
     { names: ["bravoure"] }

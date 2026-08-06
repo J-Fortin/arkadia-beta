@@ -185,6 +185,24 @@ function duplicateCompetenceNamesFor(race, carriere) {
   return [...counts.entries()].filter(([, count]) => count > 1);
 }
 
+function careerCompetenceExists(carriere, nom) {
+  const target = normalizeCompetenceKey(nom);
+
+  return (options.competences || []).some((option) => {
+    return option.carriere === carriere && normalizeCompetenceKey(option.nom) === target;
+  });
+}
+
+function mixedCareerSpecialCompetences() {
+  return Object.entries(options.sourcesParCarriereMixte || {}).flatMap(([carriere, sources]) => {
+    return (options.competences || [])
+      .filter((option) => option.carriere === carriere && normalizeCompetenceKey(option.cat).startsWith("carriere"))
+      .filter((option) => {
+        return !(sources || []).some((source) => careerCompetenceExists(source, option.nom));
+      });
+  });
+}
+
 const magicState = { race: "", carriere: "", competences: [] };
 const magicContext = vm.createContext({
   document: {
@@ -404,6 +422,7 @@ assert(competenceMax(options, meta, "Bravoure") === 1, "Bravoure gratuite doit r
 assert(competenceMax(options, meta, "Resistance physique") > 1, "Resistance physique doit rester cumulable.");
 assert(competenceMax(options, meta, "Lancer meurtrier") > 1, "Lancer meurtrier doit rester cumulable.");
 assert((options.competences || []).filter((option) => option.race).every((option) => option.gratuit === true && Number(option.xp) === 0), "Les avantages raciaux doivent etre exposes comme gratuits.");
+assert(!(options.competences || []).some((option) => /avac/i.test(option.nom)), "Bouclier avance ne doit pas rester mal orthographie en Bouclier Avace.");
 assertRacialFree(options, "demi-elfe", "Archerie", 3);
 assertRacialFree(options, "demi-elfe", "Lecture et ecriture Commun", 2);
 assertRacialFree(options, "elfe-gris", "Haute magie", 3);
@@ -427,6 +446,10 @@ const duplicateCompetenceChoices = options.races.flatMap((race) => {
 assert(duplicateCompetenceChoices.length === 0, `Les choix de competences ne doivent pas afficher de doublons: ${duplicateCompetenceChoices.slice(0, 5).join("; ")}`);
 const elfeNoirInquisiteurTorture = competenceOptionsFor("elfe-noir", "inquisiteur").filter((option) => normalizeCompetenceKey(option.nom) === "torture");
 assert(elfeNoirInquisiteurTorture.length === 1 && normalizeCompetenceKey(elfeNoirInquisiteurTorture[0].cat) === "raciale", "Elfe noir Inquisiteur doit voir Torture une seule fois, avec le meilleur cout.");
+mixedCareerSpecialCompetences().forEach((option) => {
+  assert(competenceInitialXpFor("humain", option.carriere, option.nom) === Number(option.xp), `La competence speciale ${option.nom} de ${option.carriere} doit garder son cout de ${option.xp} XP.`);
+});
+assert(competenceInitialXpFor("humain", "inquisiteur", "Abjuration") === 6, "Abjuration d'Inquisiteur doit couter 6 XP.");
 assert(!competenceIsAvailable("humain", "mage", "Archerie Arcane"), "Archerie Arcane doit exiger Archerie.");
 assert(competenceIsAvailable("humain", "mage", "Archerie Arcane", { selected: ["Archerie"] }), "Archerie Arcane doit etre disponible avec Archerie et une carriere magique.");
 assert(!competenceIsAvailable("humain", "barbare", "Baton de pouvoir"), "Baton de pouvoir doit exiger une carriere magique ou semi-magique.");
@@ -532,8 +555,11 @@ assert(armor.bodyPoints === 4 && armor.gorget?.throatProtection === true, "Les p
 const sample = {
   joueur: {
     nom: "Verification Joueur",
+    naiss: "1990-02-03",
+    premier: "2022-05-06",
     tel: "418-000-0000",
     email: "test@example.com",
+    allergies: "Arachides",
     u1nom: "Contact Un",
     u1tel: "418-111-1111",
     u2nom: "Contact Deux",
@@ -541,31 +567,86 @@ const sample = {
   },
   personnage: {
     nom: "Verification",
+    premier: "2023-01-02",
     race: "humain",
+    raceVariant: "",
     carriere: "charlatan",
     moralite: "balancee",
+    religion: "Amida",
+    religion2: "Baku",
+    ecole: "Dons",
+    ecole2: "Sortileges",
+    maison: "Maison Verification",
+    noblesse: "oui",
     ptsArmure: "7",
     typeArmure: "Metal rigide complet",
     piecesArmure: { zones: fullPlateZones, helmet: "metal-rigide", gorget: "metal-rigide" },
     chancesActuelles: "3",
     chancesMax: "3",
+    faiblesses: "Feu",
+    immunites: "Maladies",
     passeSaison: "oui",
-    xpGeneraux: "5"
+    xpEvenements: "9",
+    xpGeneraux: "11",
+    ressources: "Forge - 10 cartes\nConcoction - 5 plantes",
+    titres: "Titre special",
+    notes: "Note de verification",
+    bg: "Background complet"
   },
-  competences: [{ nom: "Falsification", freq: "", count: "1", xp: "0" }],
-  sorts: [],
+  audit: {
+    eventCountCurrent: 3,
+    eventAbuseWarning: "Alerte evenement",
+    seasonPassWarning: "Alerte passe saison",
+    chanceAbuseWarning: "Alerte chances"
+  },
+  competences: [
+    { nom: "Falsification", freq: "", count: "1", xp: "0" },
+    { nom: "Resistance physique", freq: "1/scenario", count: "2", xp: "12" }
+  ],
+  sorts: [{ ecole: "Dons", lvl: "1", nom: "Sort de verification", xp: "2" }],
   competencesSpeciales: [{ nom: "Marque de l'animation", freq: "1 fois", count: "2", xp: "7", note: "Titre special" }],
   sortsSpeciaux: [{ ecole: "Voie unique", lvl: "4", nom: "Sort hors codex", xp: "3", note: "Autorise par animation" }],
-  evenements: []
+  evenements: [
+    { ev: "Evenement un", saison: "12", xp: "3" },
+    { ev: "Evenement deux", saison: "13", xp: "3" }
+  ]
 };
 
 const workbook = await generateCharacterWorkbook(sample);
 const parsed = await parseCharacterWorkbook(workbook);
 assert(parsed.joueur.nom === sample.joueur.nom, "L'import Excel doit restaurer le nom du joueur.");
+assert(parsed.joueur.naiss === sample.joueur.naiss, "L'import Excel doit restaurer la date de naissance.");
+assert(parsed.joueur.premier === sample.joueur.premier, "L'import Excel doit restaurer la date du 1er Arkadia.");
+assert(parsed.joueur.tel === sample.joueur.tel, "L'import Excel doit restaurer le telephone du joueur.");
+assert(parsed.joueur.email === sample.joueur.email, "L'import Excel doit restaurer le courriel du joueur.");
+assert(parsed.joueur.allergies === sample.joueur.allergies, "L'import Excel doit restaurer les allergies.");
 assert(parsed.joueur.u1nom === sample.joueur.u1nom, "L'import Excel doit restaurer le contact d'urgence #1.");
 assert(parsed.joueur.u1tel === sample.joueur.u1tel, "L'import Excel doit restaurer le telephone du contact #1.");
 assert(parsed.joueur.u2nom === sample.joueur.u2nom, "L'import Excel doit restaurer le contact d'urgence #2.");
 assert(parsed.joueur.u2tel === sample.joueur.u2tel, "L'import Excel doit restaurer le telephone du contact #2.");
+assert(parsed.personnage.nom === sample.personnage.nom, "L'import Excel doit restaurer le nom du personnage.");
+assert(parsed.personnage.premier === sample.personnage.premier, "L'import Excel doit restaurer la date du 1er evenement personnage.");
+assert(parsed.personnage.race === sample.personnage.race, "L'import Excel doit restaurer la race.");
+assert(parsed.personnage.carriere === sample.personnage.carriere, "L'import Excel doit restaurer la carriere.");
+assert(parsed.personnage.moralite === sample.personnage.moralite, "L'import Excel doit restaurer la moralite.");
+assert(parsed.personnage.religion === sample.personnage.religion, "L'import Excel doit restaurer la divinite.");
+assert(parsed.personnage.religion2 === sample.personnage.religion2, "L'import Excel doit restaurer la divinite secondaire.");
+assert(parsed.personnage.ecole === sample.personnage.ecole, "L'import Excel doit restaurer l'ecole de magie.");
+assert(parsed.personnage.ecole2 === sample.personnage.ecole2, "L'import Excel doit restaurer l'ecole de magie secondaire.");
+assert(parsed.personnage.maison === sample.personnage.maison, "L'import Excel doit restaurer la maison.");
+assert(parsed.personnage.noblesse === sample.personnage.noblesse, "L'import Excel doit restaurer la noblesse.");
+assert(parsed.personnage.typeArmure === sample.personnage.typeArmure, "L'import Excel doit restaurer le type d'armure.");
+assert(parsed.personnage.chancesActuelles === sample.personnage.chancesActuelles, "L'import Excel doit restaurer les chances actuelles.");
+assert(parsed.personnage.chancesMax === sample.personnage.chancesMax, "L'import Excel doit restaurer les chances maximum.");
+assert(parsed.personnage.faiblesses === sample.personnage.faiblesses, "L'import Excel doit restaurer les faiblesses exportees.");
+assert(parsed.personnage.immunites === sample.personnage.immunites, "L'import Excel doit restaurer les immunites exportees.");
+assert(parsed.personnage.ressources === sample.personnage.ressources, "L'import Excel doit restaurer les ressources.");
+assert(parsed.personnage.titres === sample.personnage.titres, "L'import Excel doit restaurer les titres.");
+assert(parsed.personnage.notes === sample.personnage.notes, "L'import Excel doit restaurer les notes.");
+assert(parsed.personnage.bg === sample.personnage.bg, "L'import Excel doit restaurer le background.");
+assert(parsed.competences?.length === sample.competences.length, "L'import Excel doit restaurer toutes les competences.");
+assert(parsed.competences?.[1]?.nom === sample.competences[1].nom && parsed.competences?.[1]?.count === sample.competences[1].count, "L'import Excel doit restaurer les competences cumulables.");
+assert(parsed.sorts?.[0]?.ecole === sample.sorts[0].ecole && parsed.sorts?.[0]?.nom === sample.sorts[0].nom, "L'import Excel doit restaurer les sorts.");
 assert(parsed.competencesSpeciales?.[0]?.nom === sample.competencesSpeciales[0].nom, "L'import Excel doit restaurer les competences speciales.");
 assert(parsed.competencesSpeciales?.[0]?.count === sample.competencesSpeciales[0].count, "L'import Excel doit restaurer le nombre de fois des competences speciales.");
 assert(parsed.competencesSpeciales?.[0]?.xp === sample.competencesSpeciales[0].xp, "L'import Excel doit restaurer les XP des competences speciales.");
@@ -577,6 +658,11 @@ assert(parsed.personnage.piecesArmure?.helmet === "metal-rigide", "L'import Exce
 assert(parsed.personnage.piecesArmure?.gorget === "metal-rigide", "L'import Excel doit restaurer le gorget.");
 assert(parsed.personnage.bonusArmure === undefined, "L'export Excel ne doit plus ecrire de bonus d'armure.");
 assert(parsed.personnage.passeSaison === sample.personnage.passeSaison, "L'import Excel doit restaurer la passe saison.");
+assert(parsed.personnage.xpEvenements === sample.personnage.xpEvenements, "L'import Excel doit restaurer les XP d'evenements.");
 assert(parsed.personnage.xpGeneraux === sample.personnage.xpGeneraux, "L'import Excel doit restaurer les XP generaux.");
+assert(parsed.personnage.evenementsParticipes === String(sample.audit.eventCountCurrent), "L'import Excel doit restaurer le nombre d'evenements.");
+assert(parsed.evenements?.length === sample.evenements.length && parsed.evenements?.[1]?.ev === sample.evenements[1].ev, "L'import Excel doit restaurer l'historique des evenements.");
+assert(apiJs.includes("/fiche/import-xlsx") && sauvegardeJs.includes("importerFicheExcel"), "L'UI doit utiliser l'import Excel specialise pour les fichiers xlsx/xlsm.");
+assert(html.includes(".xlsm"), "Le selecteur de fichier doit accepter les imports XLSM.");
 
 console.log("Verification Arkadia OK");

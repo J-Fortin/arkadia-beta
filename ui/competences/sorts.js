@@ -52,6 +52,17 @@ function sortLevelIsUnlocked(level, excludeRowId='', ecole=''){
   return true;
 }
 
+function addImportedSortOption(sel,nomVal=''){
+  if(!sel||!nomVal)return null;
+
+  const option=document.createElement('option');
+  option.value=nomVal;
+  option.textContent=`Import Excel · ${nomVal}`;
+  sel.appendChild(option);
+  sel.value=nomVal;
+  return option;
+}
+
 function updateSortSchoolOptions(sel){
   const current=sel.value;
   const schools=getAvailableSortSchools();
@@ -159,7 +170,7 @@ function updateSortOptions(sel,level,ecole=''){
   if(cur && [...sel.options].some(option=>option.value===cur)){
     sel.value=cur;
   } else if(cur) {
-    sel.value='';
+    addImportedSortOption(sel,cur);
   }
 }
 
@@ -235,8 +246,10 @@ function addSort(nivVal='',nomVal='',xpVal='',ecoleVal=''){
     if(nomVal){
       const nomSel=tr.querySelector('.sort-nom-sel');
       nomSel.value=nomVal;
-      if(!nomSel.value)nomSel.value='';
+      const importedUnknown=!nomSel.value;
+      if(importedUnknown)addImportedSortOption(nomSel,nomVal);
       onSortNomSel(nomSel,id);
+      if(importedUnknown&&xpVal!==undefined&&xpVal!=='')tr.querySelector('.sort-xp').value=parseXP(xpVal);
     }
   }
 

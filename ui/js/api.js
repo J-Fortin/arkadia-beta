@@ -444,3 +444,13 @@ async function importerFiche(file) {
     body: file
   });
 }
+
+async function importerFicheExcel(file) {
+  return fetchFromApi("/fiche/import-xlsx", {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    },
+    body: file
+  });
+}
