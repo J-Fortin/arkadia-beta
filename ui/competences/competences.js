@@ -182,6 +182,14 @@ function racialCompetenceCareerAllows(option){
 
   const carr=v('carriere');
   const keys=getCompetenceAccessKeys(option.nom);
+  const directRules=getCompetenceAccessRules().racialDirectCompetences || [];
+  const directAccess=directRules.some(rule=>{
+    const races=rule.races || [];
+    const names=(rule.names || []).map(name=>normalizeCompetenceKey(name));
+    return races.includes(option.race) && names.some(name=>keys.has(name));
+  });
+
+  if(directAccess)return true;
 
   return getDatabaseCompetenceOptions().some(candidate=>{
     if(candidate.race || !competenceMatchesAccessKey(candidate,keys))return false;
@@ -216,6 +224,7 @@ function competenceAllowedByCodexRestrictions(option){
   if(name==='invocation guerriere')return hasSelectedCompetence('Religion') && selectedCareerAllowsArmor();
   if(name==='noblesse')return race==='haut-elfe';
   if(name==='peinture des morts')return selectedSchoolIs('Nécromancie');
+  if(name==='ferveur divine')return hasSelectedCompetence('Religion');
   if(name==='rage animale')return carriere==='totem' && (accessRules.rageAnimaleRaces || []).includes(race);
   if(name==='rituel')return hasSelectedCompetenceStartingWith('Lecture et écriture') && hasSelectedCompetence('Religion');
 

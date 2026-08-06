@@ -74,6 +74,10 @@ function assertRacialFree(options, race, expected, baseXp) {
   assert(Number(option.baseXp) === baseXp, `La competence raciale ${expected} doit conserver son cout normal (${baseXp}) pour les achats suivants.`);
 }
 
+function assertNoRacialCompetence(options, race, expected) {
+  assert(!racialCompetence(options, race, expected), `La competence raciale ${expected} ne doit pas exister pour ${race}.`);
+}
+
 function competenceMetaEntry(meta, expected) {
   const target = normalizeCompetenceKey(expected);
 
@@ -156,6 +160,14 @@ function competenceOptionsFor(race, carriere, { selected = [], schools = [], mor
 function competenceIsAvailable(race, carriere, nom, state = {}) {
   const target = normalizeCompetenceKey(nom);
   return competenceOptionsFor(race, carriere, state).some((option) => normalizeCompetenceKey(option.nom) === target);
+}
+
+function competenceInitialXpFor(race, carriere, nom, state = {}) {
+  const target = normalizeCompetenceKey(nom);
+  const option = competenceOptionsFor(race, carriere, state).find((candidate) => normalizeCompetenceKey(candidate.nom) === target);
+
+  assert(option, `La competence ${nom} doit etre disponible pour ${race}/${carriere}.`);
+  return competenceContext.getOptionInitialXp(option, "");
 }
 
 function contactMarchandOptionsFor(race, carriere, state = {}) {
@@ -400,7 +412,11 @@ assertRacialFree(options, "elfe-lunaire", "Resistance magique", 6);
 assertRacialFree(options, "elfe-lunaire", "Resistance mentale", 6);
 assertRacialFree(options, "haut-elfe", "Noblesse", 3);
 assertRacialFree(options, "haut-elfe", "Lecture et ecriture Elfique", 2);
+assertRacialFree(options, "haut-elfe", "Tir precis", 6);
+assertNoRacialCompetence(options, "haut-elfe", "Resistance mentale");
 assertRacialFree(options, "gitan", "Arme de jet", 3);
+assertRacialFree(options, "demi-demon", "Bravoure", 4);
+assertRacialFree(options, "demi-demon", "Torture", 4);
 assert(competencesJs.includes("racialCompetenceCareerAllows"), "Les avantages raciaux gratuits doivent etre filtres selon l'acces de carriere.");
 const duplicateCompetenceChoices = options.races.flatMap((race) => {
   return options.carrieres.map((carriere) => {
@@ -426,6 +442,11 @@ assert(!competenceIsAvailable("rasgadan", "druide", "Rage animale"), "Rage anima
 assert(!competenceIsAvailable("humain", "totem", "Rage animale"), "Rage animale doit exiger une race permise.");
 assert(competenceIsAvailable("haut-elfe", "combattant", "Noblesse"), "Noblesse doit etre disponible pour Haut-Elfe.");
 assert(!competenceIsAvailable("humain", "combattant", "Noblesse"), "Noblesse doit etre reservee aux Hauts-Elfes.");
+assert(competenceIsAvailable("haut-elfe", "mage", "Tir precis"), "Tir precis doit etre visible comme competence raciale gratuite Haut-Elfe.");
+assert(competenceInitialXpFor("haut-elfe", "mage", "Resistance mentale") === 6, "Resistance mentale ne doit pas etre gratuite pour Haut-Elfe.");
+assert(competenceIsAvailable("demi-demon", "combattant", "Torture"), "Demi-demon doit avoir acces a Torture comme competence raciale gratuite.");
+assert(!competenceIsAvailable("humain", "combattant", "Ferveur divine"), "Ferveur divine doit exiger Religion hors acces de carriere direct.");
+assert(competenceIsAvailable("humain", "combattant", "Ferveur divine", { selected: ["Religion"] }), "Ferveur divine doit etre disponible avec Religion.");
 assert(!competenceIsAvailable("humain", "combattant", "Sang impur"), "Sang impur doit exiger une race directe ou Religion malefique.");
 assert(competenceIsAvailable("humain", "combattant", "Sang impur", { moralite: "malefique", selected: ["Religion"] }), "Sang impur doit etre disponible avec Religion malefique.");
 assert(!competenceIsAvailable("humain", "combattant", "Sang pur", { moralite: "benefique" }), "Sang pur doit exiger Religion benefique.");
@@ -452,6 +473,7 @@ assert(magicPointsFor("demi-elfe", "mage") === 20, "Les autres races magiques do
 assert(hasSpellAccessFor("elfe-sanguinaire", "barbare") === false && magicPointsFor("elfe-sanguinaire", "barbare") === 0, "Le bonus Elfe sanguinaire ne doit pas donner acces aux sorts a une carriere non magique.");
 assert(sortMaxFor("humain", "sage") === 6, "Sage doit garder un niveau de sorts maximum de base de 6.");
 assert(sortMaxFor("humain", "sage", ["Ferveur magique"]) === 7, "Ferveur magique doit donner acces au niveau 7 pour Sage.");
+assert(sortMaxFor("humain", "sage", ["Ferveur divine"]) === 7, "Ferveur divine doit donner acces au niveau 7 pour Sage.");
 assert(sortMaxFor("humain", "barde") === 5, "Une carriere semi-magique doit garder un niveau de sorts maximum de base de 5.");
 assert(sortMaxFor("humain", "barde", ["Ferveur magique"]) === 6, "Ferveur magique doit donner acces au niveau 6 pour une carriere semi-magique.");
 assert(sortMaxFor("humain", "barbare", ["Ferveur magique"]) === 0, "Ferveur magique ne doit pas donner de sorts a une carriere non magique.");

@@ -9,7 +9,9 @@ import {
   excludedRaceValues,
   excludedCompetenceNames,
   getClientCodexRules,
+  manualGeneralCompetences,
   manualRaceImmunities,
+  manualRacialCompetenceRemovals,
   manualRacialFreeCompetences,
   mixedCareerSources,
   raceChanceOverrides,
@@ -166,6 +168,15 @@ function getCodexCumulableMax(value) {
 
 function isExcludedCompetence(value) {
   return excludedCompetenceNames.has(normalizedCompetenceName(value));
+}
+
+function isRemovedRacialCompetence(option) {
+  if (!option?.race) return false;
+
+  return manualRacialCompetenceRemovals.some((removal) => {
+    return removal.race === option.race
+      && normalizedCompetenceName(removal.nom) === normalizedCompetenceName(option.nom);
+  });
 }
 
 function isNameValue(value) {
@@ -662,6 +673,21 @@ export async function getDatabaseOptions() {
       });
     });
 
+    manualGeneralCompetences.forEach(({ nom }) => {
+      const baseXp = baseXpByName.get(normalizedCompetenceName(nom));
+
+      if (!isNameValue(nom) || baseXp === undefined) return;
+
+      competences.push({
+        nom,
+        xp: baseXp,
+        baseXp,
+        cat: "G\u00e9n\u00e9rale",
+        cumulableMax: getCodexCumulableMax(nom),
+        gratuit: false
+      });
+    });
+
   }
 
   const uniqueCarrieres = uniqueOptions(carrieres);
@@ -736,7 +762,7 @@ export async function getDatabaseOptions() {
     immunitesParCarriere,
     immunitesParCompetence,
     competences: uniqueByKey(competences.filter((option) => {
-      return !isExcludedCompetence(option.nom) && !isExcludedRaceValue(option.race);
+      return !isExcludedCompetence(option.nom) && !isExcludedRaceValue(option.race) && !isRemovedRacialCompetence(option);
     }), (option) => [
       option.cat,
       option.nom,

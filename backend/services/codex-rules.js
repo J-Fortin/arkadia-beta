@@ -228,11 +228,20 @@ export const excludedCompetenceNames = new Set([
 export const manualRacialFreeCompetences = [
   { race: "haut-elfe", nom: "Noblesse", source: "Codex p. 38" },
   { race: "haut-elfe", nom: "Lecture et \u00e9criture (Elfique)", source: "Codex p. 38" },
-  { race: "gitan", nom: "Arme de jet", source: "Codex p. 47" }
+  { race: "gitan", nom: "Arme de jet", source: "Codex p. 47" },
+  { race: "demi-demon", nom: "Bravoure", source: "Codex p. 43" }
+];
+
+export const manualRacialCompetenceRemovals = [
+  { race: "haut-elfe", nom: "R\u00e9sistance mentale", source: "Codex p. 38" }
 ];
 
 export const manualRaceImmunities = [
   { race: "gitan", immunite: "Mal\u00e9dictions", source: "Codex p. 47" }
+];
+
+export const manualGeneralCompetences = [
+  { nom: "Ferveur divine", source: "Codex p. 43" }
 ];
 
 export const firstFreeCompetenceRules = {
@@ -513,6 +522,10 @@ export const competenceRules = {
   access: {
     charognardRaces: ["corvus", "orque", "demi-demon", "rasgadan", "gobelin", "morgull", "saurien", "ratfolk"],
     rageAnimaleRaces: ["arboreen", "corvus", "merflok", "rasgadan", "ratfolk", "saurien"],
+    racialDirectCompetences: [
+      { races: ["demi-demon"], names: ["torture"] },
+      { races: ["haut-elfe"], names: ["tir precis"] }
+    ],
     sangImpurDirectRaces: ["demi-demon", "elfe-sanguinaire", "morgull", "illithyd"],
     sangInterditRaces: [],
     sangPurInterditRaces: ["demi-demon", "elfe-sanguinaire", "morgull", "illithyd"]

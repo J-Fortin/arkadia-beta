@@ -42,7 +42,7 @@ function normalizeStateKey(value){
 function hasSelectedFerveurMagique(){
   return selectedCompetenceNames().some(name=>{
     const normalized=normalizeStateKey(name).replace(/^touche a tout /,'');
-    return normalized==='ferveur magique' || normalized==='ferveur magic';
+    return normalized==='ferveur magique' || normalized==='ferveur magic' || normalized==='ferveur divine';
   });
 }
 
