@@ -228,6 +228,8 @@ export const excludedCompetenceNames = new Set([
 export const manualRacialFreeCompetences = [
   { race: "haut-elfe", nom: "Noblesse", source: "Codex p. 38" },
   { race: "haut-elfe", nom: "Lecture et \u00e9criture (Elfique)", source: "Codex p. 38" },
+  { race: "elfe-noir", nom: "Coup abyssal", baseXp: 0, source: "Codex - avantage racial Elfe noir" },
+  { race: "etre-sylvestre", nom: "Aura de s\u00e9r\u00e9nit\u00e9", baseXp: 0, source: "Codex - avantage racial Etre Sylvestre" },
   { race: "gitan", nom: "Arme de jet", source: "Codex p. 47" },
   { race: "demi-demon", nom: "Bravoure", source: "Codex p. 43" }
 ];
@@ -275,7 +277,8 @@ export const firstFreeCompetenceRules = {
     { startsWith: "lecture et ecriture" }
   ],
   charlatan: [
-    { startsWith: "lecture et ecriture" }
+    { startsWith: "lecture et ecriture" },
+    { names: ["resistance aux poisons"] }
   ],
   sage: [
     { startsWith: "lecture et ecriture" }
@@ -528,6 +531,9 @@ export const competenceRules = {
     rageAnimaleRaces: ["arboreen", "corvus", "merflok", "rasgadan", "ratfolk", "saurien"],
     racialDirectCompetences: [
       { races: ["demi-demon"], names: ["torture"] },
+      { races: ["elfe-noir"], names: ["coup abyssal"] },
+      { races: ["etre-sylvestre"], names: ["aura de serenite"] },
+      { races: ["gitan"], names: ["clairvoyance"] },
       { races: ["haut-elfe"], names: ["tir precis"] }
     ],
     sangImpurDirectRaces: ["demi-demon", "elfe-sanguinaire", "morgull", "illithyd"],

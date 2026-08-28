@@ -661,22 +661,22 @@ export async function getDatabaseOptions() {
       if (!isNameValue(race) || !isNameValue(nom) || baseXp === undefined) continue;
       if (isExcludedRaceValue(optionValue(race))) continue;
 
-      const racialFree = xpDelta < 0;
-      const xp = racialFree ? 0 : Math.max(0, baseXp + xpDelta);
+      const xp = Math.max(0, baseXp + xpDelta);
+      const racialDiscount = xpDelta < 0 && xp > 0;
       competences.push({
         nom,
         xp,
         baseXp,
         cat: "Raciale",
         race: optionValue(race),
-        gratuit: racialFree || xp === 0,
-        note: racialFree || xp === 0 ? "" : (xpDelta < 0 ? "rabais racial" : ""),
+        gratuit: xp === 0,
+        note: racialDiscount ? "rabais racial" : "",
         cumulableMax: getCodexCumulableMax(nom)
       });
     }
 
-    manualRacialFreeCompetences.forEach(({ race, nom }) => {
-      const baseXp = baseXpByName.get(normalizedCompetenceName(nom));
+    manualRacialFreeCompetences.forEach(({ race, nom, baseXp: manualBaseXp }) => {
+      const baseXp = manualBaseXp ?? baseXpByName.get(normalizedCompetenceName(nom));
 
       if (!race || !isNameValue(nom) || baseXp === undefined) return;
       if (isExcludedRaceValue(race)) return;

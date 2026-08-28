@@ -57,10 +57,6 @@ function getMixedCareerCategory(nom) {
   return `Carrière - ${matchingSources.map(source => source.label).join(' / ')}`;
 }
 
-function annuleSurcoutMixte() {
-  return v('race') === 'humain';
-}
-
 function hasSelectedCompetence(targetName){
   const target=normalizeCompetenceKey(targetName);
   return selectedCompetenceNames().some(name=>normalizeCompetenceKey(name)===target);
@@ -260,12 +256,25 @@ function categoryIsGeneral(cat){
   return normalizeCompetenceKey(cat)==='generale';
 }
 
-function mixedCategoryIsShared(cat){
-  return String(cat || '').includes('/');
+function competenceIsLectureEtEcriture(nom){
+  return normalizeCompetenceKey(nom).startsWith('lecture et ecriture');
+}
+
+function humanLectureEtEcritureDiscountApplies(nom,cat){
+  return v('race')==='humain' && categoryIsGeneral(cat) && competenceIsLectureEtEcriture(nom);
+}
+
+function paidLectureEtEcritureDiscountApplies(nom,cat){
+  return humanLectureEtEcritureDiscountApplies(nom,cat)
+    || (['demi-elfe','elfe-gris'].includes(v('race')) && normalizeCompetenceKey(cat)==='raciale' && competenceIsLectureEtEcriture(nom));
+}
+
+function racialLectureDiscountShouldStayPaid(option){
+  return option?.note==='rabais racial' && competenceIsLectureEtEcriture(option.nom);
 }
 
 function mixedSurchargeApplies(cat, gratuit=false){
-  return !gratuit && carriereEstMixte() && isCareerCategory(cat) && !mixedCategoryIsShared(cat);
+  return !gratuit && carriereEstMixte() && isCareerCategory(cat);
 }
 
 function getFirstFreeCompetenceRules(){
@@ -296,6 +305,11 @@ function firstFreeCompetenceApplies(nom,rowId=''){
   return true;
 }
 
+function firstFreeCompetenceAppliesForOption(option,rowId=''){
+  if(racialLectureDiscountShouldStayPaid(option) || paidLectureEtEcritureDiscountApplies(option.nom,option.cat))return false;
+  return firstFreeCompetenceApplies(option.nom,rowId);
+}
+
 function humanGeneralDiscountApplies(cat, rowId=''){
   if(v('race')!=='humain' || !categoryIsGeneral(cat))return false;
   let generalBefore=0;
@@ -315,15 +329,17 @@ function xpFinalCompetence(rawXp, cat, gratuit=false, rowId='', nom='', ignoreFi
   let base = parseXP(rawXp);
   if (gratuit) return 0;
 
-  if (!ignoreFirstFree && firstFreeCompetenceApplies(nom,rowId)) {
+  if (!ignoreFirstFree && !paidLectureEtEcritureDiscountApplies(nom,cat) && firstFreeCompetenceApplies(nom,rowId)) {
     return 0;
   }
 
-  if (humanGeneralDiscountApplies(cat,rowId)) {
+  if (humanLectureEtEcritureDiscountApplies(nom,cat)) {
+    base=Math.max(0,base-1);
+  } else if (humanGeneralDiscountApplies(cat,rowId)) {
     base=Math.max(0,base-1);
   }
 
-  if (mixedSurchargeApplies(cat,gratuit) && !annuleSurcoutMixte()) {
+  if (mixedSurchargeApplies(cat,gratuit)) {
     return base + SURCOUT_CARRIERE_MIXTE;
   }
 
@@ -332,15 +348,19 @@ function xpFinalCompetence(rawXp, cat, gratuit=false, rowId='', nom='', ignoreFi
 
 function noteCoutMixte(cat, gratuit=false) {
   if (!mixedSurchargeApplies(cat,gratuit)) return '';
-  return annuleSurcoutMixte() ? ' [surcoût mixte annulé]' : ' [mixte +1]';
+  return ' [mixte +1]';
 }
 
 function noteFirstFreeCompetence(nom,rowId=''){
   return firstFreeCompetenceApplies(nom,rowId)?' [1er gratuit]':'';
 }
 
-function noteRabaisHumain(cat,rowId,gratuit=false){
-  if(gratuit || !humanGeneralDiscountApplies(cat,rowId))return '';
+function noteFirstFreeCompetenceForOption(option,rowId=''){
+  return firstFreeCompetenceAppliesForOption(option,rowId)?' [1er gratuit]':'';
+}
+
+function noteRabaisHumain(nom,cat,rowId,gratuit=false){
+  if(gratuit || (!humanLectureEtEcritureDiscountApplies(nom,cat) && !humanGeneralDiscountApplies(cat,rowId)))return '';
   return ' [Humain -1]';
 }
 
@@ -351,7 +371,7 @@ function updateCompetences(){
   const humanHint=g('human-comp-hint');
   if(humanHint){
     humanHint.style.display=race==='humain'?'block':'none';
-    humanHint.textContent=race==='humain'?'Humain : les 2 premières compétences générales sélectionnées coûtent 1 XP de moins. Ensuite, les coûts reviennent à la normale.':'';
+    humanHint.textContent=race==='humain'?'Humain : les 2 premières compétences générales sélectionnées coûtent 1 XP de moins. Lecture et Écriture garde ce rabais pour chaque langue.':'';
   }
   if(!carr||!race){alertEl.classList.add('show');return;}
   alertEl.classList.remove('show');
@@ -454,7 +474,7 @@ function contactMarchandLimitAllows(option,rowId='',currentKey=''){
 
 function getOptionInitialXp(option,rowId=''){
   const gratuit=Boolean(option.gratuit);
-  const firstFree=!gratuit && firstFreeCompetenceApplies(option.nom,rowId);
+  const firstFree=!gratuit && firstFreeCompetenceAppliesForOption(option,rowId);
   const xpNum=xpFinalCompetence(option.xp, option.cat, gratuit, rowId, option.nom);
 
   return gratuit?getFreeCompetenceFirstXp(option.nom,option.cat,rowId):(firstFree?0:xpNum);
@@ -462,7 +482,7 @@ function getOptionInitialXp(option,rowId=''){
 
 function getOptionExtraXp(option,rowId=''){
   const gratuit=Boolean(option.gratuit);
-  const firstFree=!gratuit && firstFreeCompetenceApplies(option.nom,rowId);
+  const firstFree=!gratuit && firstFreeCompetenceAppliesForOption(option,rowId);
   const firstXp=getOptionInitialXp(option,rowId);
 
   return gratuit || firstFree?getExtraXpForFreeCompetence(option.nom,option.baseXp || option.xp,rowId,true):firstXp;
@@ -556,14 +576,14 @@ function rebuildCompSelect(sel){
       .sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}))
       .forEach(o=>{
       const gratuit=Boolean(o.gratuit);
-      const firstFree=!gratuit && firstFreeCompetenceApplies(o.nom,rowId);
+      const firstFree=!gratuit && firstFreeCompetenceAppliesForOption(o,rowId);
       const xpNum=xpFinalCompetence(o.xp, o.cat, gratuit, rowId, o.nom);
       const firstXp=getOptionInitialXp(o,rowId);
       const meta=getCompetenceMeta(o.nom, cat);
       const cumulableMax=parseInt(o.cumulableMax,10)||getCumulableMax(o.nom, cat);
       const frequencyLabel=meta.frequence?` · ${meta.frequence}`:'';
       const cumulableLabel=cumulableMax>1?` · max ${cumulableMax}`:'';
-      const note=o.note?` [${o.note}]`:`${noteFirstFreeCompetence(o.nom,rowId)}${noteRabaisHumain(o.cat,rowId,gratuit || firstFree)}${noteCoutMixte(o.cat, gratuit || firstFree)}`;
+      const note=o.note?` [${o.note}]`:`${noteFirstFreeCompetenceForOption(o,rowId)}${noteRabaisHumain(o.nom,o.cat,rowId,gratuit || firstFree)}${noteCoutMixte(o.cat, gratuit || firstFree)}`;
       const freeLabel=firstXp>0?' [racial mixte +1]':((gratuit || firstFree) && cumulableMax>1?' [1er GRATUIT]':' [GRATUIT]');
       const label=getCompetenceSourcePrefix(cat)+o.nom+(gratuit || firstFree?freeLabel:note);
       const extraXp=getOptionExtraXp(o,rowId);
@@ -629,7 +649,7 @@ function getFreeCompetenceFirstXp(nom, cat='', rowId=''){
   const option=getPaidOptionForCompetence(nom);
   if(!option)return 0;
 
-  return mixedSurchargeApplies(option.cat,false) && !annuleSurcoutMixte()
+  return mixedSurchargeApplies(option.cat,false)
     ? SURCOUT_CARRIERE_MIXTE
     : 0;
 }
