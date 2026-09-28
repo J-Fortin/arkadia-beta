@@ -45,13 +45,17 @@ function competenceExisteDansCarriereSource(nom, sourceKey) {
   });
 }
 
+function getMatchingMixedCareerSources(nom) {
+  return getMixedCareerSources().filter(source => competenceExisteDansCarriereSource(nom, source.key));
+}
+
 function getMixedCareerCategory(nom) {
   const sources = getMixedCareerSources();
   const carriere=getDatabaseCarriereOption(v('carriere'));
   const specialCategory=`Spécial - ${carriere?.label || 'Carrière'}`;
   if (sources.length === 0) return specialCategory;
 
-  const matchingSources = sources.filter(source => competenceExisteDansCarriereSource(nom, source.key));
+  const matchingSources = getMatchingMixedCareerSources(nom);
   if (matchingSources.length === 0) return specialCategory;
 
   return `Carrière - ${matchingSources.map(source => source.label).join(' / ')}`;
@@ -207,6 +211,8 @@ function competenceAllowedByCodexRestrictions(option){
 
   if(concoctionRules[name] && (!concoctionSourceAllowed(option) || !exclusiveConcoctionAllowed(option)))return false;
 
+  if(name==='morsure elementaire')return carriere==='mage' && selectedSchoolIs('Magie élémentaire');
+
   if(optionGivesDirectAccess(option))return true;
 
   if(concoctionRules[name]){
@@ -273,8 +279,10 @@ function racialLectureDiscountShouldStayPaid(option){
   return option?.note==='rabais racial' && competenceIsLectureEtEcriture(option.nom);
 }
 
-function mixedSurchargeApplies(cat, gratuit=false){
-  return !gratuit && carriereEstMixte() && isCareerCategory(cat);
+function mixedSurchargeApplies(cat, gratuit=false, nom=''){
+  const sources=getMixedCareerSources();
+  const sharedByAllSources=sources.length>1 && getMatchingMixedCareerSources(nom).length===sources.length;
+  return v('race')!=='humain' && !gratuit && carriereEstMixte() && isCareerCategory(cat) && !sharedByAllSources;
 }
 
 function getFirstFreeCompetenceRules(){
@@ -306,8 +314,9 @@ function firstFreeCompetenceApplies(nom,rowId=''){
 }
 
 function firstFreeCompetenceAppliesForOption(option,rowId=''){
-  if(racialLectureDiscountShouldStayPaid(option) || paidLectureEtEcritureDiscountApplies(option.nom,option.cat))return false;
-  return firstFreeCompetenceApplies(option.nom,rowId);
+  if(!firstFreeCompetenceApplies(option.nom,rowId))return false;
+  if(v('race')==='humain')return true;
+  return !racialLectureDiscountShouldStayPaid(option) && !paidLectureEtEcritureDiscountApplies(option.nom,option.cat);
 }
 
 function humanGeneralDiscountApplies(cat, rowId=''){
@@ -329,7 +338,8 @@ function xpFinalCompetence(rawXp, cat, gratuit=false, rowId='', nom='', ignoreFi
   let base = parseXP(rawXp);
   if (gratuit) return 0;
 
-  if (!ignoreFirstFree && !paidLectureEtEcritureDiscountApplies(nom,cat) && firstFreeCompetenceApplies(nom,rowId)) {
+  if (!ignoreFirstFree && firstFreeCompetenceApplies(nom,rowId)
+    && (v('race')==='humain' || !paidLectureEtEcritureDiscountApplies(nom,cat))) {
     return 0;
   }
 
@@ -339,15 +349,15 @@ function xpFinalCompetence(rawXp, cat, gratuit=false, rowId='', nom='', ignoreFi
     base=Math.max(0,base-1);
   }
 
-  if (mixedSurchargeApplies(cat,gratuit)) {
+  if (mixedSurchargeApplies(cat,gratuit,nom)) {
     return base + SURCOUT_CARRIERE_MIXTE;
   }
 
   return base;
 }
 
-function noteCoutMixte(cat, gratuit=false) {
-  if (!mixedSurchargeApplies(cat,gratuit)) return '';
+function noteCoutMixte(cat, gratuit=false, nom='') {
+  if (!mixedSurchargeApplies(cat,gratuit,nom)) return '';
   return ' [mixte +1]';
 }
 
@@ -477,7 +487,7 @@ function getOptionInitialXp(option,rowId=''){
   const firstFree=!gratuit && firstFreeCompetenceAppliesForOption(option,rowId);
   const xpNum=xpFinalCompetence(option.xp, option.cat, gratuit, rowId, option.nom);
 
-  return gratuit?getFreeCompetenceFirstXp(option.nom,option.cat,rowId):(firstFree?0:xpNum);
+  return gratuit?0:(firstFree?0:xpNum);
 }
 
 function getOptionExtraXp(option,rowId=''){
@@ -485,7 +495,7 @@ function getOptionExtraXp(option,rowId=''){
   const firstFree=!gratuit && firstFreeCompetenceAppliesForOption(option,rowId);
   const firstXp=getOptionInitialXp(option,rowId);
 
-  return gratuit || firstFree?getExtraXpForFreeCompetence(option.nom,option.baseXp || option.xp,rowId,true):firstXp;
+  return gratuit || firstFree?getExtraXpForFreeCompetence(option.nom,option.baseXp || option.xp,rowId,true,option.cat):firstXp;
 }
 
 function getOptionSourcePriority(option){
@@ -583,8 +593,8 @@ function rebuildCompSelect(sel){
       const cumulableMax=parseInt(o.cumulableMax,10)||getCumulableMax(o.nom, cat);
       const frequencyLabel=meta.frequence?` · ${meta.frequence}`:'';
       const cumulableLabel=cumulableMax>1?` · max ${cumulableMax}`:'';
-      const note=o.note?` [${o.note}]`:`${noteFirstFreeCompetenceForOption(o,rowId)}${noteRabaisHumain(o.nom,o.cat,rowId,gratuit || firstFree)}${noteCoutMixte(o.cat, gratuit || firstFree)}`;
-      const freeLabel=firstXp>0?' [racial mixte +1]':((gratuit || firstFree) && cumulableMax>1?' [1er GRATUIT]':' [GRATUIT]');
+      const note=o.note?` [${o.note}]`:`${noteFirstFreeCompetenceForOption(o,rowId)}${noteRabaisHumain(o.nom,o.cat,rowId,gratuit || firstFree)}${noteCoutMixte(o.cat, gratuit || firstFree, o.nom)}`;
+      const freeLabel=(gratuit || firstFree) && cumulableMax>1?' [1er GRATUIT]':' [GRATUIT]';
       const label=getCompetenceSourcePrefix(cat)+o.nom+(gratuit || firstFree?freeLabel:note);
       const extraXp=getOptionExtraXp(o,rowId);
       const xpDisplay=(gratuit || firstFree)
@@ -626,7 +636,11 @@ function getPaidOptionsForCompetence(nom){
   }).filter(option=>competenceAllowedByCodexRestrictions(option));
 }
 
-function getExtraXpForFreeCompetence(nom, fallbackXp, rowId='', ignoreFirstFree=false){
+function getExtraXpForFreeCompetence(nom, fallbackXp, rowId='', ignoreFirstFree=false, sourceCat=''){
+  if(normalizeCompetenceKey(sourceCat)==='raciale'){
+    return xpFinalCompetence(fallbackXp,sourceCat,false,rowId,nom,ignoreFirstFree);
+  }
+
   const option=getPaidOptionForCompetence(nom);
   const rawXp=option?.xp ?? fallbackXp;
   const cat=option?.cat || 'Générale';
@@ -641,17 +655,6 @@ function getPaidOptionForCompetence(nom){
   const racialOption=paidOptions.find(option=>option.race===v('race'));
 
   return careerOption || racialOption || generalOption || null;
-}
-
-function getFreeCompetenceFirstXp(nom, cat='', rowId=''){
-  if(normalizeCompetenceKey(cat)!=='raciale')return 0;
-
-  const option=getPaidOptionForCompetence(nom);
-  if(!option)return 0;
-
-  return mixedSurchargeApplies(option.cat,false)
-    ? SURCOUT_CARRIERE_MIXTE
-    : 0;
 }
 
 function setCompCountOptions(countSel, max, selected='1') {
@@ -814,8 +817,8 @@ function onCompSel(sel,rowId,overrideXP,overrideFreq,overrideCount,skipRefresh=f
   const meta=getCompetenceMeta(nom, cat);
   const maxCumulable=parseInt(maxRaw,10)||getCumulableMax(nom, cat);
   const firstFree=!gratuit && firstFreeCompetenceApplies(nom,rowId);
-  const firstXp=gratuit?getFreeCompetenceFirstXp(nom,cat,rowId):(firstFree?0:xpFinalCompetence(xpRaw,cat,gratuit,rowId,nom));
-  const extraXp=gratuit || firstFree?getExtraXpForFreeCompetence(nom,baseXpRaw,rowId,true):firstXp;
+  const firstXp=gratuit?0:(firstFree?0:xpFinalCompetence(xpRaw,cat,gratuit,rowId,nom));
+  const extraXp=gratuit || firstFree?getExtraXpForFreeCompetence(nom,baseXpRaw,rowId,true,cat):firstXp;
   const count=overrideCount!==undefined&&overrideCount!==''?overrideCount:'1';
 
   xpIn.dataset.firstXp=String(firstXp);

@@ -5,6 +5,7 @@ import zlib from "node:zlib";
 import {
   canonicalTextAliases,
   codexCumulableCompetences,
+  competenceNameAliases,
   defaultRaceChances,
   excludedRaceValues,
   excludedCompetenceNames,
@@ -157,7 +158,7 @@ function getBonusTarget(value) {
 
 function cleanCompetenceName(value) {
   const withoutBonus = canonicalText(value).replace(/\s*\(Bonus\s+[^)]*\)?\s*$/i, "").trim();
-  return canonicalText(withoutBonus);
+  return competenceNameAliases[slugify(withoutBonus)] || canonicalText(withoutBonus);
 }
 
 function normalizedCompetenceName(value) {

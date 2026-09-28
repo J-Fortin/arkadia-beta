@@ -151,12 +151,6 @@ const competenceContext = vm.createContext({
 });
 vm.runInContext(competencesJs, competenceContext, { filename: "ui/competences/competences.js" });
 
-function freeCompetenceFirstXp(race, carriere, nom, cat = "Raciale") {
-  competenceState.race = race;
-  competenceState.carriere = carriere;
-  return competenceContext.getFreeCompetenceFirstXp(nom, cat, "");
-}
-
 function competenceOptionsFor(race, carriere, { selected = [], schools = [], moralite = "balancee" } = {}) {
   competenceState.race = race;
   competenceState.carriere = carriere;
@@ -225,10 +219,6 @@ function mixedCareerSpecialCompetences() {
   });
 }
 
-function categoryIsCareer(cat) {
-  return normalizeCompetenceKey(String(cat || "").split("-")[0]).startsWith("carriere");
-}
-
 function firstFreeRuleMatchesName(rule, nom) {
   const normalized = normalizeCompetenceKey(nom);
   const names = (rule.names || []).map((name) => normalizeCompetenceKey(name));
@@ -243,20 +233,19 @@ function careerOptionGetsFirstFree(option) {
   return rules.some((rule) => firstFreeRuleMatchesName(rule, option.nom));
 }
 
-function expectedHumanCareerInitialXp(option, visibleOption) {
+function expectedHumanCareerInitialXp(option) {
   if (careerOptionGetsFirstFree(option)) return 0;
-
-  const carriere = options.carrieres.find((candidate) => candidate.value === option.carriere);
-  const mixedSurcharge = carriere?.mixte && categoryIsCareer(visibleOption.cat) ? 1 : 0;
-
-  return Number(option.xp) + mixedSurcharge;
+  return Number(option.xp);
 }
 
 function assertAllCareerCompetencesAreCosted() {
   const issues = [];
 
   (options.competences || []).filter((option) => option.carriere).forEach((option) => {
-    const visibleOption = visibleCompetenceOptionFor("humain", option.carriere, option.nom);
+    const state = normalizeCompetenceKey(option.nom) === "morsure elementaire"
+      ? { schools: ["Magie elementaire"] }
+      : {};
+    const visibleOption = visibleCompetenceOptionFor("humain", option.carriere, option.nom, state);
 
     if (!visibleOption || visibleOption.carriere !== option.carriere) {
       issues.push(`${option.carriere}/${option.nom} absent du choix de carriere`);
@@ -264,7 +253,7 @@ function assertAllCareerCompetencesAreCosted() {
     }
 
     const initialXp = optionInitialXp(visibleOption);
-    const expectedXp = expectedHumanCareerInitialXp(option, visibleOption);
+    const expectedXp = expectedHumanCareerInitialXp(option);
 
     if (initialXp > expectedXp) {
       issues.push(`${option.carriere}/${option.nom}: ${initialXp} XP au lieu de ${expectedXp} max`);
@@ -305,7 +294,7 @@ function assertAllRacialCompetencesAreCosted() {
     }
 
     visibleMatches.forEach(({ carriere, initialXp }) => {
-      if (option.gratuit === true && initialXp > 1) {
+      if (option.gratuit === true && initialXp !== 0) {
         issues.push(`${option.race}/${carriere}/${option.nom}: gratuit racial calcule a ${initialXp} XP`);
       }
 
@@ -341,7 +330,7 @@ function assertAllVisibleCompetenceCostsAreValid() {
           issues.push(`${race.value}/${carriere.value}/${option.nom}: rabais racial visible invalide`);
         }
 
-        if (option.race && option.gratuit === true && initialXp > 1) {
+        if (option.race && option.gratuit === true && initialXp !== 0) {
           issues.push(`${race.value}/${carriere.value}/${option.nom}: gratuite raciale visible trop chere (${initialXp})`);
         }
       });
@@ -668,6 +657,9 @@ assertRacialFree(options, "gitan", "Arme de jet", 3);
 assertRacialDiscount(options, "gitan", "Clairvoyance", 4, 5);
 assertRacialFree(options, "demi-demon", "Bravoure", 4);
 assertRacialFree(options, "demi-demon", "Torture", 4);
+assertRacialFree(options, "saurien", "Clairvoyance", 5);
+assertRacialFree(options, "saurien", "Orientation planaire", 3);
+assert(!(options.competences || []).some((option) => normalizeCompetenceKey(option.nom) === "elementaliste"), "Elementaliste doit etre remplace par Morsure elementaire.");
 assert(competencesJs.includes("racialCompetenceCareerAllows"), "Les avantages raciaux gratuits doivent etre filtres selon l'acces de carriere.");
 const duplicateCompetenceChoices = options.races.flatMap((race) => {
   return options.carrieres.map((carriere) => {
@@ -693,11 +685,25 @@ assert(!competenceIsAvailable("humain", "combattant", "Invocation Guerriere"), "
 assert(competenceIsAvailable("humain", "combattant", "Invocation Guerriere", { selected: ["Religion"] }), "Invocation Guerriere doit etre disponible avec Religion et une carriere armee.");
 assert(!competenceIsAvailable("humain", "mage", "Rituel", { selected: ["Religion"] }), "Rituel doit exiger Lecture et ecriture en plus de Religion.");
 assert(competenceIsAvailable("humain", "mage", "Rituel", { selected: ["Religion", "Lecture et ecriture - Commun"] }), "Rituel doit etre disponible avec Religion et Lecture et ecriture.");
+assert(competenceInitialXpFor("orque", "mage", "Rituel", { selected: ["Religion", "Lecture et ecriture - Commun"] }) === 4, "Rituel doit couter 4 XP sans rabais racial.");
+assert(competenceInitialXpFor("orque", "combattant", "Resistance aux maladies") === 4, "Resistance aux maladies doit couter 4 XP.");
+assert(competenceInitialXpFor("humain", "combattant", "Resistance aux maladies") === 3, "Resistance aux maladies doit profiter du rabais humain lorsqu'elle est choisie parmi les deux premieres competences generales.");
+assert(competenceInitialXpFor("nain", "combattant", "Arme a feu") === 2, "Arme a feu doit couter 2 XP au Nain avec son rabais racial.");
+assert(competenceInitialXpFor("orque", "combattant", "Arme a feu") === 3, "Arme a feu doit conserver son cout normal de 3 XP sans rabais.");
+assert(competenceInitialXpFor("orque", "mage", "Resistance mentale") === 6, "Resistance mentale doit couter 6 XP dans une carriere de base.");
 assert(!competenceIsAvailable("humain", "mage", "Peinture des Morts"), "Peinture des Morts doit exiger l'ecole Necromancie.");
 assert(competenceIsAvailable("humain", "mage", "Peinture des Morts", { schools: ["Necromancie"] }), "Peinture des Morts doit etre disponible avec l'ecole Necromancie.");
+assert(!competenceIsAvailable("humain", "mage", "Morsure elementaire"), "Morsure elementaire doit exiger l'ecole Magie elementaire.");
+assert(competenceIsAvailable("humain", "mage", "Morsure elementaire", { schools: ["Magie elementaire"] }), "Morsure elementaire doit etre disponible pour un Mage de l'ecole Magie elementaire.");
+assert(competenceInitialXpFor("humain", "mage", "Morsure elementaire", { schools: ["Magie elementaire"] }) === 6, "Morsure elementaire doit couter 6 XP.");
+assert(!competenceIsAvailable("humain", "sage", "Morsure elementaire", { schools: ["Magie elementaire"] }), "Une carriere mixte ne doit pas obtenir la competence privilege Morsure elementaire du Mage.");
 assert(competenceIsAvailable("rasgadan", "totem", "Rage animale"), "Rasgadan Totem doit avoir acces a Rage animale.");
 assert(!competenceIsAvailable("rasgadan", "druide", "Rage animale"), "Rage animale doit exiger la carriere Totem.");
 assert(!competenceIsAvailable("humain", "totem", "Rage animale"), "Rage animale doit exiger une race permise.");
+assert(competenceInitialXpFor("saurien", "combattant", "Clairvoyance") === 0, "Saurien doit obtenir Clairvoyance gratuitement, peu importe sa carriere.");
+assert(competenceInitialXpFor("saurien", "combattant", "Orientation planaire") === 0, "Saurien doit obtenir Orientation planaire gratuitement, peu importe sa carriere.");
+assert(competenceInitialXpFor("saurien", "totem", "Rage animale") === 6, "Saurien Totem doit pouvoir acheter Rage animale a 6 XP.");
+assert(!competenceIsAvailable("saurien", "druide", "Rage animale"), "Saurien non-Totem ne doit pas avoir acces a Rage animale.");
 assert(competenceIsAvailable("haut-elfe", "combattant", "Noblesse"), "Noblesse doit etre disponible pour Haut-Elfe.");
 assert(!competenceIsAvailable("humain", "combattant", "Noblesse"), "Noblesse doit etre reservee aux Hauts-Elfes.");
 assert(competenceIsAvailable("haut-elfe", "mage", "Tir precis"), "Tir precis doit etre visible comme competence raciale gratuite Haut-Elfe.");
@@ -706,7 +712,9 @@ assert(competenceIsAvailable("elfe-noir", "charlatan", "Coup abyssal"), "Coup ab
 assert(competenceIsAvailable("etre-sylvestre", "druide", "Aura de serenite"), "Aura de serenite doit etre visible comme competence raciale gratuite Etre Sylvestre.");
 assert(competenceIsAvailable("gitan", "combattant", "Clairvoyance"), "Clairvoyance doit etre visible comme competence raciale a rabais Gitan hors acces de carriere.");
 assert(competenceInitialXpFor("gitan", "combattant", "Clairvoyance") === 4, "Gitan Combattant doit acheter Clairvoyance a 4 XP comme competence raciale a rabais.");
-assert(competenceInitialXpFor("humain", "mage", "Lecture et ecriture Commun") === 1, "Humain Mage doit garder Lecture et ecriture a 1 XP malgre le 1er gratuit de carriere.");
+assert(competenceInitialXpFor("humain", "mage", "Lecture et ecriture Commun") === 0, "Humain Mage doit obtenir son 1er achat de Lecture et ecriture gratuitement.");
+assert(competenceInitialXpFor("humain", "sage", "Lecture et ecriture Commun") === 0, "Humain Sage doit obtenir son 1er achat de Lecture et ecriture gratuitement.");
+assert(competenceInitialXpFor("humain", "sage", "Lecture et ecriture Elfique", { selected: ["Lecture et ecriture - Commun"] }) === 1, "Humain Sage doit payer 1 XP pour les achats de Lecture et ecriture suivant le premier gratuit.");
 assert(competenceInitialXpFor("humain", "combattant", "Lecture et ecriture Rakuzan", { selected: ["Lecture et ecriture - Commun", "Lecture et ecriture - Elfique"] }) === 1, "Humain doit garder chaque langue Lecture et ecriture a 1 XP meme apres deux langues.");
 assert(competenceInitialXpFor("demi-elfe", "barde", "Lecture et ecriture Commun") === 1, "Demi-Elfe Barde doit garder Lecture et ecriture a 1 XP malgre le 1er gratuit de carriere.");
 assert(competenceInitialXpFor("demi-elfe", "combattant", "Lecture et ecriture Rakuzan", { selected: ["Lecture et ecriture (Commun)", "Lecture et ecriture (Elfique)"] }) === 1, "Demi-Elfe doit garder chaque langue Lecture et ecriture a 1 XP.");
@@ -731,12 +739,15 @@ assert(contactMarchandOptionsFor("humain", "marchand", { selected: contactMarcha
 assert(contactMarchandOptionsFor("humain", "marchand", { selected: contactMarchandSelection }).length === 0, "Marchand ne doit pas pouvoir choisir plus de 3 contacts marchands.");
 assert(contactMarchandOptionsFor("humain", "charlatan").length === 7, "Une carriere mixte marchande doit voir les contacts marchands avant selection.");
 assert(contactMarchandOptionsFor("humain", "charlatan", { selected: contactMarchandSelection.slice(0, 1) }).length === 0, "Une carriere mixte marchande ne doit pas pouvoir choisir plus de 1 contact marchand.");
-assert(competencesJs.includes("getFreeCompetenceFirstXp"), "Les avantages raciaux gratuits doivent appliquer le surcout mixte au premier achat.");
 assert(competenceInitialXpFor("elfe-gris", "mage", "Haute magie") === 2, "Elfe gris Mage doit acheter Haute magie a 2 XP comme competence raciale a rabais.");
 assert(competenceInitialXpFor("elfe-gris", "barde", "Haute magie") === 2, "Elfe gris Barde doit garder le rabais racial sur Haute magie sans surcout mixte.");
 assert(competenceInitialXpFor("demi-elfe", "barde", "Archerie") === 2, "Demi-Elfe Barde doit acheter Archerie a 2 XP comme competence raciale a rabais.");
-assert(competenceInitialXpFor("humain", "barde", "Haute magie") === 4, "Humain Barde doit payer le surcout mixte sur Haute magie.");
-assert(competenceInitialXpFor("elfe-gris", "animiste", "Clairvoyance") === 6, "Animiste doit payer le surcout mixte meme quand la competence vient des deux sources.");
+assert(competenceInitialXpFor("humain", "barde", "Haute magie") === 3, "Humain Barde ne doit pas payer le surcout de carriere mixte sur Haute magie.");
+assert(competenceInitialXpFor("elfe-gris", "animiste", "Clairvoyance") === 5, "Animiste ne doit pas payer le surcout mixte quand la competence vient des deux sources.");
+assert(competenceInitialXpFor("orque", "barde", "Haute magie") === 4, "Une race non humaine doit payer le surcout mixte quand la competence vient d'une seule source.");
+const resistanceMentaleElfeLunaireBarde = visibleCompetenceOptionFor("elfe-lunaire", "barde", "Resistance mentale");
+assert(resistanceMentaleElfeLunaireBarde && optionInitialXp(resistanceMentaleElfeLunaireBarde) === 0, "Resistance mentale raciale gratuite doit rester a 0 XP en carriere mixte.");
+assert(optionExtraXp(resistanceMentaleElfeLunaireBarde) === 6, "Les achats suivants de Resistance mentale raciale doivent garder le cout normal sans surcout mixte.");
 assert(magicPointsFor("elfe-sanguinaire", "barde") === 20, "Elfe sanguinaire semi-magique doit avoir 20 points de magie.");
 assert(magicPointsFor("elfe-sanguinaire", "mage") === 30, "Elfe sanguinaire magique doit avoir 30 points de magie.");
 assert(magicPointsFor("demi-elfe", "mage") === 20, "Les autres races magiques doivent conserver les points de magie de carriere.");

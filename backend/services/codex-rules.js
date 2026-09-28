@@ -166,7 +166,6 @@ export const cumulableCompetenceNames = [
   "resistance a l alcool",
   "resistance aux maladies",
   "energie vegetale",
-  "elementaliste",
   "morsure elementaire",
   "attaque brutale",
   "bravoure accrue",
@@ -231,7 +230,9 @@ export const manualRacialFreeCompetences = [
   { race: "elfe-noir", nom: "Coup abyssal", baseXp: 0, source: "Codex - avantage racial Elfe noir" },
   { race: "etre-sylvestre", nom: "Aura de s\u00e9r\u00e9nit\u00e9", baseXp: 0, source: "Codex - avantage racial Etre Sylvestre" },
   { race: "gitan", nom: "Arme de jet", source: "Codex p. 47" },
-  { race: "demi-demon", nom: "Bravoure", source: "Codex p. 43" }
+  { race: "demi-demon", nom: "Bravoure", source: "Codex p. 43" },
+  { race: "saurien", nom: "Clairvoyance", source: "Codex p. 52" },
+  { race: "saurien", nom: "Orientation planaire", source: "Codex p. 52" }
 ];
 
 export const manualRacialCompetenceRemovals = [
@@ -318,6 +319,10 @@ export const canonicalTextAliases = {
   "bouclier-avace": "Bouclier avancé",
   "cration-d-anima": "Création d'anima",
   "creation-d-anima": "Création d'anima"
+};
+
+export const competenceNameAliases = {
+  elementaliste: "Morsure élémentaire"
 };
 
 export const magicRules = {
@@ -534,7 +539,8 @@ export const competenceRules = {
       { races: ["elfe-noir"], names: ["coup abyssal"] },
       { races: ["etre-sylvestre"], names: ["aura de serenite"] },
       { races: ["gitan"], names: ["clairvoyance"] },
-      { races: ["haut-elfe"], names: ["tir precis"] }
+      { races: ["haut-elfe"], names: ["tir precis"] },
+      { races: ["saurien"], names: ["clairvoyance", "orientation planaire"] }
     ],
     sangImpurDirectRaces: ["demi-demon", "elfe-sanguinaire", "morgull", "illithyd"],
     sangInterditRaces: [],
