@@ -227,6 +227,8 @@ export const excludedCompetenceNames = new Set([
 export const manualRacialFreeCompetences = [
   { race: "haut-elfe", nom: "Noblesse", source: "Codex p. 38" },
   { race: "haut-elfe", nom: "Lecture et \u00e9criture (Elfique)", source: "Codex p. 38" },
+  { race: "elfe-sanguinaire", nom: "Sang impur", source: "Codex - competences raciales Elfe sanguinaire" },
+  { race: "elfe-sanguinaire", nom: "Transfert de vitalit\u00e9 en mana", source: "Codex - competences raciales Elfe sanguinaire" },
   { race: "elfe-noir", nom: "Coup abyssal", baseXp: 0, source: "Codex - avantage racial Elfe noir" },
   { race: "etre-sylvestre", nom: "Aura de s\u00e9r\u00e9nit\u00e9", baseXp: 0, source: "Codex - avantage racial Etre Sylvestre" },
   { race: "gitan", nom: "Arme de jet", source: "Codex p. 47" },

@@ -682,7 +682,8 @@ export async function getDatabaseOptions() {
       if (!race || !isNameValue(nom) || baseXp === undefined) return;
       if (isExcludedRaceValue(race)) return;
 
-      competences.push({
+      const existing = competences.find((option) => option.race === race && normalizedCompetenceName(option.nom) === normalizedCompetenceName(nom));
+      const freeOption = {
         nom,
         xp: 0,
         baseXp,
@@ -691,7 +692,9 @@ export async function getDatabaseOptions() {
         gratuit: true,
         note: "",
         cumulableMax: getCodexCumulableMax(nom)
-      });
+      };
+      if (existing) Object.assign(existing, freeOption);
+      else competences.push(freeOption);
     });
 
     manualGeneralCompetences.forEach(({ nom }) => {
